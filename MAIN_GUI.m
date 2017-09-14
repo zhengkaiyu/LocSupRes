@@ -1,0 +1,1297 @@
+function varargout = MAIN_GUI(varargin)
+% MAIN_GUI MATLAB code for MAIN_GUI.fig
+%      MAIN_GUI, by itself, creates a new MAIN_GUI or raises the existing
+%      singleton*.
+%
+%      H = MAIN_GUI returns the handle to a new MAIN_GUI or the handle to
+%      the existing singleton*.
+%
+%      MAIN_GUI('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in MAIN_GUI.M with the given input arguments.
+%
+%      MAIN_GUI('Property','Value',...) creates a new MAIN_GUI or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before MAIN_GUI_OpeningFcn gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to MAIN_GUI_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Edit the above text to modify the response to help MAIN_GUI
+
+% Last Modified by GUIDE v2.5 27-Feb-2017 10:42:05
+
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+    'gui_Singleton',  gui_Singleton, ...
+    'gui_OpeningFcn', @MAIN_GUI_OpeningFcn, ...
+    'gui_OutputFcn',  @MAIN_GUI_OutputFcn, ...
+    'gui_LayoutFcn',  [] , ...
+    'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+% --- Executes just before MAIN_GUI is made visible.
+function MAIN_GUI_OpeningFcn(hObject, ~, handles, varargin)
+% Choose default command line output for MAIN_GUI
+handles.output = hObject;
+
+% Update handles structure
+guidata(hObject, handles);
+
+initialise(handles);
+
+% --- Outputs from this function are returned to the command line.
+function varargout = MAIN_GUI_OutputFcn(~, ~, handles)
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+%==GUI functions==========================================================
+% --- Executes on button press in BUTTON_OPEN.
+function BUTTON_OPEN_Callback(~, ~, handles) %#ok<*DEFNU>
+global DATA;
+% ask for one file to open
+[filename,pathname,~] = uigetfile({'*.laf','FIMAS file (*.laf)';...
+    '*.*','All Files (*.*)'},...
+    'Select Saved Localisation Analysis File',...
+    'MultiSelect','off','./');
+% if files selected
+if pathname~=0
+    temp = load(cat(2,pathname,filename),'-mat'); % load file
+    DATA=temp.DATA;
+    % update datainfo table
+    display_datainfo( handles.TABLE_DATAINFO );
+    % update probe menu
+    fname=fieldnames(DATA.datainfo);
+    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    probe_list=cell(DATA.datainfo.n_probe,1);
+    for idx=1:DATA.datainfo.n_probe
+        probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
+    end
+    handles.MENU_PROBE.String=probe_list;
+    handles.MENU_PROBE.Value=1;
+    handles.MENU_SORTCLUSTERTABLE.Value=1;
+    msgbox(sprintf('%s successfully loaded\n',filename),'Open Localisation Analysis File','modal');
+end
+
+% --- Executes on button press in BUTTON_SAVE.
+function BUTTON_SAVE_Callback(~, ~, ~)
+global DATA; %#ok<NUSED>
+[filename,pathname,~]=uiputfile({'*.laf','localisation analysis file (*.laf)';...
+    '*.*','All Files (*.*)'},...
+    'Select Saved Localisation Analysis File','./');
+if pathname~=0
+    filename=cat(2,pathname,filename);
+    version='7.3';
+    save(filename,'DATA','-mat',cat(2,'-v',version));
+    msgbox(sprintf('%s saved in ver %s\n',filename,version),'Save File','modal');
+else
+    % user interuption
+    msgbox(sprintf('File save cancelled\n'),'Save File','modal');
+end
+
+% --- Executes on button press in BUTTON_LOADRAW.
+function BUTTON_LOADRAW_Callback(~, ~, handles)
+global DATA DEFAULT_COLOUR;
+% select file from storage
+[filename,data_pathname,~]=uigetfile({'*.*','All Files (*.*)';...
+    '*.csv','Bruker exported localisation data (*.csv)'},...
+    'Select Raw Data File','MultiSelect','off','./');
+if data_pathname~=0     %if files selected
+    filename=cat(2,data_pathname,filename);
+    % attempt to open file
+    [data_file,~]=fopen(filename,'r');
+    if data_file>=3 % successfully opened
+        % read header
+        buffer=fgetl(data_file);
+        header=regexp(buffer,'[\s,\s]','split');
+        for header_idx=1:numel(header)
+            DATA.datainfo.(cat(2,'header',num2str(header_idx)))=header{header_idx};
+        end
+        fclose(data_file);% close file
+        % read data segment
+        val=csvread(filename,1,0);
+        % image_id column
+        DATA.datainfo.imageidcol=find(strcmp('image-ID',header));
+        image_ids=unique(val(:,DATA.datainfo.imageidcol));
+        DATA.datainfo.n_image=numel(image_ids);
+        % cycle column
+        DATA.datainfo.cyclecol=find(strcmp('cycle',header));
+        cycles=unique(val(:,DATA.datainfo.cyclecol));
+        DATA.datainfo.n_cycle=numel(cycles);
+        % zstep column
+        DATA.datainfo.zstepcol=find(strcmp('z-step',header));
+        zsteps=unique(val(:,DATA.datainfo.zstepcol));
+        DATA.datainfo.n_zstep=numel(zsteps);
+        % frame column
+        DATA.datainfo.framecol=find(strcmp('frame',header));
+        frames=unique(val(:,DATA.datainfo.framecol));
+        DATA.datainfo.n_frame=numel(frames);
+        % accum column
+        DATA.datainfo.accumcol=find(strcmp('accum',header));
+        accums=unique(val(:,DATA.datainfo.accumcol));
+        DATA.datainfo.n_accum=numel(accums);
+        % probe column
+        DATA.datainfo.probecol=find(strcmp('probe',header));
+        probes=unique(val(:,DATA.datainfo.probecol));
+        DATA.datainfo.n_probe=numel(probes);
+        
+        % valid column (column 28, last column)
+        DATA.datainfo.validcol=find(strcmp('valid',header));
+        valid=find(val(:,DATA.datainfo.validcol)==1);
+        DATA.datainfo.n_valid=numel(valid);
+        
+        % other useful column designation
+        DATA.datainfo.psfpccol=find(strcmp('psf-photon-count',header));
+        DATA.datainfo.bg11col=find(strcmp('background11',header));
+        DATA.datainfo.bg12col=find(strcmp('background12',header));
+        DATA.datainfo.bg21col=find(strcmp('background21',header));
+        DATA.datainfo.bg22col=find(strcmp('background22',header));
+        DATA.datainfo.chisqcol=find(strcmp('chisq',header));
+        DATA.datainfo.loglhcol=find(strcmp('log-likelihood',header));
+        DATA.datainfo.accuracycol=find(strcmp('accuracy',header));
+        
+        % convert position from nm to um
+        DATA.datainfo.psfxcol=find(strcmp('psfx',header));
+        DATA.datainfo.psfycol=find(strcmp('psfy',header));
+        DATA.datainfo.psfzcol=find(strcmp('psfz',header));
+        DATA.datainfo.xcol=find(strcmp('x',header));
+        DATA.datainfo.ycol=find(strcmp('y',header));
+        DATA.datainfo.zcol=find(strcmp('z',header));
+        X_pos=val(valid,DATA.datainfo.xcol)/1000;
+        Y_pos=val(valid,DATA.datainfo.ycol)/1000;
+        Z_pos=val(valid,DATA.datainfo.zcol)/1000;
+        
+        % set dimension scales
+        p_scale=probes;
+        X_scale=min(X_pos):DATA.datainfo.dX:max(X_pos);
+        Y_scale=min(Y_pos):DATA.datainfo.dY:max(Y_pos);
+        Z_scale=min(Z_pos):DATA.datainfo.dZ:max(Z_pos);
+        T_scale=1;
+        % get dimension sizes
+        p_size=numel(p_scale);
+        X_size=numel(X_scale);
+        Y_size=numel(Y_scale);
+        Z_size=numel(Z_scale);
+        T_size=numel(T_scale);
+        DATA.datainfo.data_dim=[p_size,X_size,Y_size,Z_size,T_size];
+        [~,DATA.datainfo.dataname,~]=fileparts(filename);
+        DATA.datainfo.p=p_scale';
+        DATA.datainfo.X=X_scale';
+        DATA.datainfo.Y=Y_scale';
+        DATA.datainfo.Z=Z_scale';
+        DATA.datainfo.T=T_scale';
+        DATA.datainfo.probe_colours=DEFAULT_COLOUR(1:p_size);
+        probe_list=cell(p_size,1);
+        for probeidx=1:p_size
+            probe_list{probeidx}=cat(2,'probe',num2str(p_scale(probeidx)));
+            DATA.datainfo.(cat(2,'probe',num2str(p_scale(probeidx)),'_name'))=probe_list{probeidx};
+            DATA.probe(probeidx).cluster=[];
+        end
+        DATA.datainfo.min_cluster_size=repmat(DATA.datainfo.min_cluster_size(1),1,DATA.datainfo.n_probe);
+        DATA.datainfo.localdist=repmat(DATA.datainfo.localdist(1),1,DATA.datainfo.n_probe);
+        DATA.dataval=val(valid,:);
+        % convert position from nm to um
+        DATA.dataval(:,[DATA.datainfo.psfxcol,DATA.datainfo.psfycol,DATA.datainfo.psfzcol,DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol])=DATA.dataval(:,[DATA.datainfo.psfxcol,DATA.datainfo.psfycol,DATA.datainfo.psfzcol,DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol])/1000;
+        DATA.datainfo.last_change=datestr(now);
+        
+        % update datainfo table
+        display_datainfo( handles.TABLE_DATAINFO );
+        % update probe menu
+        handles.MENU_PROBE.String=probe_list;
+        handles.MENU_PROBE.Value=1;
+        handles.MENU_SORTCLUSTERTABLE.Value=1;
+        msgbox(sprintf('%s successfully loaded\n',filename),'Load Exported Localisation File','modal');
+    else
+        % failed to open file
+        errordlg(sprintf('%s failed to open\n',filename));
+    end
+else
+    % failed to open file
+    errordlg(sprintf('fileopen cancelled\n'));
+end
+
+% --- Executes when entered data in editable cell(s) in TABLE_DATAINFO.
+function TABLE_DATAINFO_CellEditCallback(hObject, eventdata, handles)
+global DATA;
+fname=fieldnames(DATA.datainfo);
+switch fname{eventdata.Indices(1)}
+    case 'probe_colours'
+        DATA.datainfo.probe_colours=eventdata.NewData;
+    case {'dX','dY','dZ'}
+        DATA.datainfo.(fname{eventdata.Indices(1)})=str2double(eventdata.NewData);
+    case 'scaled'
+        DATA.datainfo.(fname{eventdata.Indices(1)})=(str2double(eventdata.NewData)==1);
+    case 'localdist'
+        val=str2num(eventdata.NewData); %#ok<*ST2NM>
+        if numel(val)~=DATA.datainfo.n_probe
+            val=repmat(val(1),1,DATA.datainfo.n_probe);
+        end
+        DATA.datainfo.(fname{eventdata.Indices(1)})=val;
+    case 'min_cluster_size'
+        val=str2num(eventdata.NewData);
+        if numel(val)~=DATA.datainfo.n_probe
+            val=repmat(val(1),1,DATA.datainfo.n_probe);
+        end
+        DATA.datainfo.(fname{eventdata.Indices(1)})=val;
+    case 'synaptic_range'
+        val=str2num(eventdata.NewData);
+        if numel(val)~=DATA.datainfo.n_probe
+            val=repmat(val(1),1,DATA.datainfo.n_probe);
+        end
+        DATA.datainfo.(fname{eventdata.Indices(1)})=val;
+    case {'slice_int','isoval'}
+        val=str2num(eventdata.NewData);
+        if numel(val)~=DATA.datainfo.n_probe
+            val=repmat(val(1),1,DATA.datainfo.n_probe);
+        end
+        DATA.datainfo.(fname{eventdata.Indices(1)})=val;
+    case {'probe0_name','probe1_name','probe2_name','probe3_name'}
+        DATA.datainfo.(fname{eventdata.Indices(1)})=eventdata.NewData;
+        probefname=fieldnames(DATA.datainfo);
+        fidx=find(cellfun(@(x)~isempty(x),regexp(probefname,'probe\w_name')));
+        probe_list=cell(DATA.datainfo.n_probe,1);
+        for idx=1:DATA.datainfo.n_probe
+            probe_list{idx}=DATA.datainfo.(probefname{fidx(idx)});
+        end
+        handles.MENU_PROBE.String=probe_list;
+        DATA.datainfo.localdist=0.5;
+    case {'accum_threshold','psfx_threshold','psfy_threshold','psfz_threshold','snr_threshold','chisq_threshold','loglike_threshold','accuracy_threshold'}
+        DATA.datainfo.(fname{eventdata.Indices(1)})=str2double(eventdata.NewData);
+    otherwise
+        errordlg(sprintf('%s cannot be changed',fname{eventdata.Indices(1)}),'Strict Variable','modal');
+end
+% update datainfo table
+display_datainfo( hObject );
+
+% --- Executes on selection change in MENU_PROBE.
+function MENU_PROBE_Callback(hObject, ~, handles)
+pidx=get(hObject,'Value');
+% update cluster info table
+display_clusterinfo(pidx,handles);
+
+% --- Executes on button press in BUTTON_SCATTER.
+function BUTTON_SCATTER_Callback(~, ~, handles)
+showlocation(handles)
+
+% --- Executes on button press in BUTTON_IMAGE.
+function BUTTON_IMAGE_Callback(~, ~, handles)
+showimage(handles)
+
+% --- Executes on selection change in MENU_ANALYSOR.
+function MENU_ANALYSOR_Callback(~, ~, ~)
+
+% --- Executes on button press in BUTTON_CALCULATE.
+function BUTTON_CALCULATE_Callback(~, ~, handles)
+analysor=handles.MENU_ANALYSOR.String{handles.MENU_ANALYSOR.Value};
+eval(cat(2,analysor,'(handles)'));
+
+% --- Executes when selected cell(s) is changed in TABLE_CLUSTERINFO.
+function TABLE_CLUSTERINFO_CellSelectionCallback(hObject, eventdata, handles)
+global DATA;
+probeidx=handles.MENU_PROBE.Value;
+rowidx=unique(eventdata.Indices(:,1));
+hObject.UserData=rowidx;
+colidx=unique(eventdata.Indices(:,2));
+currenthold=handles.PANEL_CLUSTER.NextPlot;
+switch currenthold
+    case 'replaceall'
+        cla(handles.PANEL_CLUSTER);
+        handles.PANEL_CLUSTER.NextPlot='add';
+end
+for idx=1:numel(rowidx)
+    if colidx==1
+        clusteridx=hObject.Data(rowidx(idx),1);
+        centroid=DATA.probe(probeidx).cluster(clusteridx).centroid;
+        plot3(handles.PANEL_CLUSTER,centroid(:,1),centroid(:,2),centroid(:,3),...
+            'LineStyle','-','LineWidth',2,...
+            'MarkerSize',5,'Marker','s',...
+            'Color',DATA.datainfo.probe_colours(probeidx));
+        showcluster(probeidx, clusteridx, handles);
+    elseif colidx>10% selected on nn column
+        temp=char(cellfun(@(x)char(x),(regexp(hObject.ColumnName(colidx(1)),'nnc\d_id','match')),'UniformOutput',false));
+        if ~isempty(temp)
+            nn_idx=find(DATA.datainfo.p==str2double(temp(4)));
+            nnclusteridx=hObject.Data(rowidx(idx),colidx(1));
+            centroid=DATA.probe(nn_idx).cluster(nnclusteridx).centroid;
+            plot3(handles.PANEL_CLUSTER,centroid(:,1),centroid(:,2),centroid(:,3),...
+                'LineStyle','-','LineWidth',2,...
+                'MarkerSize',8,'Marker','s',...
+                'Color',DATA.datainfo.probe_colours(nn_idx));
+            showcluster(nn_idx, nnclusteridx, handles);
+        else
+            % show synapse
+            temp=char(cellfun(@(x)char(x),(regexp(hObject.ColumnName(colidx(1)),'_synapse(','match')),'UniformOutput',false));
+            if ~isempty(temp)
+                clusteridx=hObject.Data(rowidx(idx),1);
+                centroid=DATA.probe(probeidx).cluster(clusteridx).centroid_synapse;
+                plot3(handles.PANEL_CLUSTER,centroid(:,1),centroid(:,2),centroid(:,3),...
+                    'LineStyle','none','LineWidth',4,...
+                    'MarkerSize',5,'Marker','+',...
+                    'Color','w');
+            end
+        end
+    end
+end
+handles.PANEL_CLUSTER.NextPlot=currenthold;
+
+% --- Executes on button press in TOGGLE_HOLDPANELSCATTER3D.
+function TOGGLE_HOLDPANELSCATTER3D_Callback(hObject, ~, handles)
+if hObject.Value
+    handles.PANEL_SCATTER3D.NextPlot='add';
+else
+    handles.PANEL_SCATTER3D.NextPlot='replacechild';
+end
+
+% --- Executes on button press in BUTTON_CLEARPANELSCATTER3D.
+function BUTTON_CLEARPANELSCATTER3D_Callback(~, ~, handles)
+cla(handles.PANEL_SCATTER3D);
+handles.PANEL_SCATTER3D.Color=[0,0,0];
+handles.PANEL_SCATTER3D.XColor=[0.7,0.7,0.7];
+handles.PANEL_SCATTER3D.YColor=[0.7,0.7,0.7];
+handles.PANEL_SCATTER3D.ZColor=[0.7,0.7,0.7];
+handles.PANEL_SCATTER3D.GridColor=[0.5,0.5,0.5];
+handles.PANEL_SCATTER3D.MinorGridColor=[0.5,0.5,0.5];
+handles.PANEL_SCATTER3D.XGrid='on';
+xlabel(handles.PANEL_SCATTER3D,'X');
+handles.PANEL_SCATTER3D.YGrid='on';
+ylabel(handles.PANEL_SCATTER3D,'Y');
+handles.PANEL_SCATTER3D.ZGrid='on';
+zlabel(handles.PANEL_SCATTER3D,'Z');
+handles.PANEL_SCATTER3D.NextPlot='replacechild';
+handles.TOGGLE_HOLDPANELSCATTER3D.Value=false;
+
+% --- Executes on button press in TOGGLE_HOLDPANELCLUSTER.
+function TOGGLE_HOLDPANELCLUSTER_Callback(hObject, ~, handles)
+if hObject.Value
+    handles.PANEL_CLUSTER.NextPlot='add';
+else
+    handles.PANEL_CLUSTER.NextPlot='replacechild';
+end
+
+% --- Executes on button press in BUTTON_CLEARPANELCLUSTER.
+function BUTTON_CLEARPANELCLUSTER_Callback(~, ~, handles)
+cla(handles.PANEL_CLUSTER);
+handles.PANEL_CLUSTER.Color=[0,0,0];
+handles.PANEL_CLUSTER.XColor=[0.7,0.7,0.7];
+handles.PANEL_CLUSTER.YColor=[0.7,0.7,0.7];
+handles.PANEL_CLUSTER.ZColor=[0.7,0.7,0.7];
+handles.PANEL_CLUSTER.GridColor=[0.5,0.5,0.5];
+handles.PANEL_CLUSTER.MinorGridColor=[0.5,0.5,0.5];
+handles.PANEL_CLUSTER.XGrid='on';
+xlabel(handles.PANEL_CLUSTER,'X');
+handles.PANEL_CLUSTER.YGrid='on';
+ylabel(handles.PANEL_CLUSTER,'Y');
+handles.PANEL_CLUSTER.ZGrid='on';
+zlabel(handles.PANEL_CLUSTER,'Z');
+handles.PANEL_CLUSTER.NextPlot='replacechild';
+handles.TOGGLE_HOLDPANELCLUSTER.Value=false;
+
+% --- Executes on selection change in MENU_SORTCLUSTERTABLE.
+function MENU_SORTCLUSTERTABLE_Callback(hObject, ~, handles)
+info=handles.TABLE_CLUSTERINFO.Data;
+info=sortrows(info,hObject.Value);%sort by volume
+handles.TABLE_CLUSTERINFO.Data=info;
+
+% --- Executes when user attempts to close MAIN_GUI.
+function MAIN_GUI_CloseRequestFcn(hObject, ~, ~)
+% ask for confirmation
+button = questdlg({'Are you sure you want to quit?',...
+    'Make sure you have saved your work'},...
+    'Check and Confirm','Yes','No','No');
+switch button
+    case 'Yes'
+        % close main GUI
+        delete(hObject);
+    case 'No'
+        %cancel closure
+        msgbox(sprintf('%s\n','Return to work'),'Cancel closing','modal');
+end
+
+%==User functions=========================================================
+function initialise(handles)
+global DATA DEFAULT_COLOUR;
+% set default colour scheme to black background and white font for dark
+% room usage
+set(0,'DefaultUicontrolBackgroundColor','k');
+set(0,'DefaultUicontrolForegroundColor','w');
+feature('accel','on');
+% clear command window
+clc;
+% stop for debugging if error
+dbstop if error;
+% But don't bother with warnings
+warning off all;
+% get current file path
+funcpath=mfilename('fullpath');
+% move to base directory as we know
+cd(funcpath(1:end-9));
+% find all subdirectory
+path=cat(2,pwd,filesep);
+% add all subdirectory for libraries
+addpath(genpath(path));
+DEFAULT_COLOUR='brgkmcy';
+% set up global variable DATA
+DATA.datainfo.n_image=[];
+DATA.datainfo.n_image=[];
+DATA.datainfo.n_cycle=[];
+DATA.datainfo.n_zstep=[];
+DATA.datainfo.n_frame=[];
+DATA.datainfo.n_accum=[];
+DATA.datainfo.n_valid=[];
+% data value parameters
+DATA.datainfo.dp=1;
+DATA.datainfo.dX=0.02;
+DATA.datainfo.dY=0.02;
+DATA.datainfo.dZ=0.05;
+DATA.datainfo.dT=1;
+DATA.datainfo.p=0;
+DATA.datainfo.X=(0:DATA.datainfo.dX:20)'; % 20um default super rest fov
+DATA.datainfo.Y=(0:DATA.datainfo.dY:20)'; % 20um default super rest fov
+DATA.datainfo.Z=(-1:DATA.datainfo.dZ:1)'; % 2um default super rest fov
+DATA.datainfo.T=1;
+p_size=numel(DATA.datainfo.p);
+X_size=numel(DATA.datainfo.X);
+Y_size=numel(DATA.datainfo.Y);
+Z_size=numel(DATA.datainfo.Z);
+T_size=numel(DATA.datainfo.T);
+DATA.datainfo.data_dim=[p_size,X_size,Y_size,Z_size,T_size];
+DATA.datainfo.dataname=[];
+DATA.datainfo.scaled=false;
+DATA.datainfo.probe_colours='r';
+% calculation parameters
+DATA.datainfo.localdist=0.5;
+DATA.datainfo.min_cluster_size=50;
+DATA.datainfo.synaptic_range=0.05;
+DATA.datainfo.per_synapse=0.5;
+DATA.datainfo.slice_int=[5,5,5];
+DATA.datainfo.isoval=[3,3,3];
+DATA.datainfo.accum_threshold=1;
+DATA.datainfo.psfx_threshold=0.125;
+DATA.datainfo.psfy_threshold=0.125;
+DATA.datainfo.psfz_threshold=0.525;
+DATA.datainfo.snr_threshold=1.5;
+DATA.datainfo.chisq_threshold=0.05;
+DATA.datainfo.loglike_threshold=0;
+DATA.datainfo.accuracy_threshold=10;
+DATA.datainfo.last_change=datestr(now);
+DATA.dataval=[];
+DATA.probe(1).cluster=[];
+% setup GUI components
+handles.TABLE_DATAINFO.Data=[];
+handles.TABLE_CLUSTERINFO.Data=[];
+handles.TOGGLE_HOLDPANELSCATTER3D.Value=false;
+handles.TOGGLE_HOLDPANELCLUSTER.Value=false;
+handles.MENU_ANALYSOR.String={'reduce_dubious_localisation',...
+    'make_cluster',...
+    'search_cluster_neighbour',...
+    'search_site_neighbour',...
+    'intercluster_distribution',...
+    'identify_synapse',...
+    'synapse_nn_site'};
+handles.MENU_ANALYSOR.Value=1;
+handles.MENU_.Value=1;
+% SET PANEL_SCATTER3D PARAMETERS
+BUTTON_CLEARPANELSCATTER3D_Callback([],[],handles);
+% SET PANEL_CLUSTER PARAMETERS
+BUTTON_CLEARPANELCLUSTER_Callback([],[],handles);
+
+function display_datainfo( output_to )
+%DISP_DATAINFO display file indata_formation in tables or text field
+%   specify which data data_format and the file index
+global DATA;
+f_name=fieldnames(DATA.datainfo);
+content=cell(length(f_name),2);%add two base field and minus 5 dims
+f_idx=0;o_idx=1;
+while f_idx<length(f_name)
+    f_idx=f_idx+1;
+    switch f_name{f_idx}
+        %case {'t','X','Y','Z','T'}
+        %not to display
+        case {''}
+            
+        otherwise
+            f_val=DATA.datainfo.(f_name{f_idx});%field_value
+            if isnumeric(f_val)
+                content{o_idx,1}=f_name{f_idx};%field name
+                if numel(f_val)>10
+                    content{o_idx,2}=sprintf('matrix of size %d x %d',size(f_val,1),size(f_val,2));
+                else
+                    content{o_idx,2}=f_val;
+                end
+                o_idx=o_idx+1;
+            else
+                if islogical(f_val)
+                    content{o_idx,1}=f_name{f_idx};%field name
+                    content{o_idx,2}=f_val;
+                else
+                    content{o_idx,1}=f_name{f_idx};%field name
+                    if ishandle(f_val)
+                        % problem with matlab root object
+                        if f_val~=0
+                            content{o_idx,2}=sprintf('handle of %s type',f_val.Type);
+                        else
+                            content{o_idx,2}=f_val;
+                        end
+                    else
+                        if iscell(f_val)
+                            content{o_idx,2}=char(f_val)';
+                        else
+                            if isa(f_val,'matlab.graphics.axis.Axes')
+                                if f_val.isvalid
+                                    content{o_idx,2}=f_val.Tag;
+                                else
+                                    content{o_idx,2}=[];
+                                end
+                            else
+                                if isstruct(f_val)
+                                    content{o_idx,2}=sprintf('structured data');
+                                else
+                                    content{o_idx,2}=f_val;
+                                end
+                            end
+                        end
+                    end
+                end
+                o_idx=o_idx+1;
+            end
+    end
+end
+info=cellfun(@(x)num2str(x),content,'UniformOutput',false);
+if isempty(output_to)
+    %default output to pipe
+    cellfun(@(x)fprintf(1,'%s\n',x),info');
+else
+    output_to.Data=info;
+end
+
+function showlocation(handles)
+global DATA;
+% get probe index
+probeidx=handles.MENU_PROBE.Value;
+probe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx);
+% plot
+plot3(handles.PANEL_SCATTER3D,DATA.dataval(probe,DATA.datainfo.xcol),DATA.dataval(probe,DATA.datainfo.ycol),DATA.dataval(probe,DATA.datainfo.zcol),...
+    'LineStyle','none','Marker','.','Color',DATA.datainfo.probe_colours(probeidx),...
+    'MarkerSize',1);
+xlim(handles.PANEL_SCATTER3D,[DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
+ylim(handles.PANEL_SCATTER3D,[DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
+zlim(handles.PANEL_SCATTER3D,[DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
+view(handles.PANEL_SCATTER3D,3);
+daspect(handles.PANEL_SCATTER3D,[1 1 1]);
+
+function showimage(handles)
+global DATA;
+% get probe index
+probeidx=handles.MENU_PROBE.Value;
+probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx));
+X_scale=DATA.datainfo.X;
+X_res=DATA.datainfo.dX;
+Y_scale=DATA.datainfo.Y;
+Y_res=DATA.datainfo.dY;
+Z_scale=DATA.datainfo.Z;
+Z_res=DATA.datainfo.dZ;
+val=zeros(DATA.datainfo.data_dim(2),DATA.datainfo.data_dim(3),DATA.datainfo.data_dim(4));
+for zslice=1:DATA.datainfo.data_dim(4)
+    % go through each z slices
+    currentzidx=find(DATA.dataval(probe,DATA.datainfo.zcol)>(Z_scale(zslice)-Z_res/2)&DATA.dataval(probe,DATA.datainfo.zcol)<=(Z_scale(zslice)+Z_res/2));
+    [temp,~,~,binx,biny]=histcounts2(DATA.dataval(probe(currentzidx),DATA.datainfo.xcol),DATA.dataval(probe(currentzidx),DATA.datainfo.ycol),[X_scale-X_res/2;X_scale(end)+X_res/2],[Y_scale-Y_res/2;Y_scale(end)+Y_res/2]);
+    if DATA.datainfo.scaled
+        for idx=1:numel(currentzidx)
+            if binx(idx)>0
+                %scaling using column 15
+                val(binx(idx),biny(idx),zslice)=temp(binx(idx),biny(idx),zslice)+DATA.dataval(probe(currentzidx(idx)),16);
+            end
+        end
+    end
+    val(:,:,zslice)=temp;
+end
+DATA.datainfo.slice_int=[5,5,5];
+DATA.datainfo.isoval=[3,3,3];
+binsize=DATA.datainfo.slice_int;
+% calculate binning
+dim_size=DATA.datainfo.data_dim(2:4);
+% work out new data size
+binsize(binsize>dim_size)=dim_size(binsize>dim_size); % make sure bin<=dim
+newsize=floor(dim_size./binsize);% can only have full number bins
+offset_size=newsize.*binsize;
+%binning
+temp=[binsize;newsize];
+reshapesize=temp(:);
+temp=val(1:offset_size(1),1:offset_size(2),1:offset_size(3));
+temp=reshape(temp,reshapesize');
+temp=mean(mean(mean(temp,1),3),5);
+val=reshape(temp,newsize);
+X_scale=mean(reshape(DATA.datainfo.X(1:offset_size(1)),[binsize(1),newsize(1)]),1);
+Y_scale=mean(reshape(DATA.datainfo.Y(1:offset_size(2)),[binsize(2),newsize(2)]),1);
+Z_scale=mean(reshape(DATA.datainfo.Z(1:offset_size(3)),[binsize(3),newsize(3)]),1);
+[y,x,z]=meshgrid(X_scale,Y_scale,Z_scale);
+val=smooth3(val,'gaussian',[3,3,1],0.6);
+% plot
+p = patch(handles.PANEL_SCATTER3D,isosurface(x,y,z,(val>DATA.datainfo.isoval(probeidx)*mean(val(:))),0.9,'noshare'));
+isonormals(y,x,z,val,p);
+p.FaceColor = DATA.datainfo.probe_colours(probeidx);
+p.EdgeColor = 'none';
+p.FaceAlpha=0.3;
+view(handles.PANEL_SCATTER3D,3);
+daspect(handles.PANEL_SCATTER3D,[1 1 1]);
+
+function display_clusterinfo( probeidx, handles )
+global DATA;
+output_to=handles.TABLE_CLUSTERINFO;
+n_cluster=numel(DATA.probe(probeidx).cluster);
+if n_cluster>0
+    colname=fieldnames(DATA.probe(probeidx).cluster);
+    info(:,1)=(1:1:n_cluster)';
+    colidx=2;
+    for fidx=1:numel(colname)
+        switch colname{fidx}
+            case 'shape'
+                info(:,colidx)=cell2mat(arrayfun(@(x)numel(x.index),DATA.probe(probeidx).cluster,'UniformOutput',false))';
+                colname{fidx}='n_site';
+                colidx=colidx+1;
+            case 'area'
+                info(:,colidx)=[DATA.probe(probeidx).cluster.area]';
+                colidx=colidx+1;
+            case 'volume'
+                info(:,colidx)=[DATA.probe(probeidx).cluster.volume]';
+                colidx=colidx+1;
+            case 'centroid'
+                info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.centroid}');
+                colidx=colidx+3;
+            case 'Dist'
+                info(:,colidx)=cellfun(@(x)max(x),{DATA.probe(probeidx).cluster.Dist})';
+                info(:,colidx+1)=cellfun(@(x)mean(x),{DATA.probe(probeidx).cluster.Dist})';
+                info(:,colidx+2)=cellfun(@(x)median(x),{DATA.probe(probeidx).cluster.Dist})';
+                colidx=colidx+3;
+            case {'nnc0_id','nnc1_id','nnc2_id','nnc3_id','nnc0_dist','nnc1_dist','nnc2_dist','nnc3_dist'}
+                info(:,colidx)=[DATA.probe(probeidx).cluster.(colname{fidx})]';
+                colidx=colidx+1;
+            case {'nns0_id','nns1_id','nns2_id','nns3_id','nns0_dist','nns1_dist','nns2_dist','nns3_dist'}
+                info(:,colidx)=[DATA.probe(probeidx).cluster.(colname{fidx})]';
+                colidx=colidx+1;
+            case 'centroid_synapse'
+                info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.centroid_synapse}');
+                colidx=colidx+3;
+            case 'loc_synapse'
+                info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.loc_synapse}');
+                colidx=colidx+3;
+            case 'mean_dist_synapse'
+                info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.mean_dist_synapse}');
+                colidx=colidx+3;
+        end
+    end
+    % add centroid colnames
+    temp=find(strcmp(colname,'centroid'));
+    if ~isempty(temp)
+        colname(temp+3:end+2)=colname(temp+1:end);
+        colname(temp:temp+2)={'C(x)','C(y)','C(z)'};
+    end
+    temp=find(strcmp(colname,'centroid_synapse'));
+    if ~isempty(temp)
+        colname(temp+3:end+2)=colname(temp+1:end);
+        colname(temp:temp+2)={'C_synapse(x)','C_synapse(y)','C_synapse(z)'};
+    end
+    temp=find(strcmp(colname,'loc_synapse'));
+    if ~isempty(temp)
+        colname(temp+3:end+2)=colname(temp+1:end);
+        colname(temp:temp+2)={'loc_synapse(x)','loc_synapse(y)','loc_synapse(z)'};
+    end
+    % add Dist colnames
+    temp=find(strcmp(colname,'Dist'));
+    if ~isempty(temp)
+        colname(temp+3:end+2)=colname(temp+1:end);
+        colname(temp:temp+2)={'Mean Dist','Median Dist','Max Dist'};
+    end
+    % add Dist colnames
+    temp=find(strcmp(colname,'mean_dist_synapse'));
+    if ~isempty(temp)
+        colname(temp+3:end+2)=colname(temp+1:end);
+        colname(temp:temp+2)={'Mean Syn Dist','Median Syn Dist','Max Syn Dist'};
+    end
+else
+    info=[];
+    colname=[];
+end
+output_to.Data=info;
+output_to.ColumnName=colname;
+handles.MENU_SORTCLUSTERTABLE.String=colname;
+handles.MENU_SORTCLUSTERTABLE.Value=1;
+
+function showcluster( probeidx, cidx, handles )
+global DATA;
+if isempty(handles)
+    plot(DATA.probe(probeidx).cluster(cidx).shape,'Facecolor',DATA.datainfo.probe_colours(probeidx),...
+        'EdgeColor','w',...
+        'EdgeAlpha',0.2,...
+        'FaceAlpha',0.5)
+    view(gca,3);
+    daspect(gca,[1 1 1]);
+else
+    plot(DATA.probe(probeidx).cluster(cidx).shape,'Facecolor',DATA.datainfo.probe_colours(probeidx),...
+        'EdgeColor','w',...
+        'EdgeAlpha',0.2,...
+        'FaceAlpha',0.5,...
+        'Parent',handles.PANEL_CLUSTER);
+    view(handles.PANEL_CLUSTER,3);
+    daspect(handles.PANEL_CLUSTER,[1 1 1]);
+end
+
+%==User Functions for analysor============================================
+function reduce_dubious_localisation(handles)
+global DATA;
+probeidx=handles.MENU_PROBE.Value;
+probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx));
+fh=figure(753);
+fh.Name=sprintf('Parameter Distribution for %s',DATA.datainfo.(cat(2,'probe',num2str(DATA.datainfo.p(probeidx)),'_name')));
+invalid_accum=DATA.dataval(probe,DATA.datainfo.accumcol)>DATA.datainfo.accum_threshold;%accumulation
+subplot(2,4,1);
+histogram(DATA.dataval(probe,DATA.datainfo.accumcol),linspace(0,5,10));
+hold on;line([DATA.datainfo.accum_threshold,DATA.datainfo.accum_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('accum');hold off;
+subplot(2,4,2);
+histogram(DATA.dataval(probe,DATA.datainfo.psfxcol),linspace(-0.5,0.5,50));
+hold on;line([DATA.datainfo.psfx_threshold,DATA.datainfo.psfx_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');
+line(-[DATA.datainfo.psfx_threshold,DATA.datainfo.psfx_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('psfx');hold off;
+subplot(2,4,3);histogram(DATA.dataval(probe,DATA.datainfo.psfycol),linspace(-0.5,0.5,50));
+hold on;line([DATA.datainfo.psfy_threshold,DATA.datainfo.psfy_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');
+line(-[DATA.datainfo.psfy_threshold,DATA.datainfo.psfy_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('psfy');hold off;
+subplot(2,4,4);histogram(DATA.dataval(probe,DATA.datainfo.psfzcol),linspace(-1,1,50));
+hold on;line([DATA.datainfo.psfz_threshold,DATA.datainfo.psfz_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');
+line(-[DATA.datainfo.psfz_threshold,DATA.datainfo.psfz_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('psfz');hold off;
+invalid_x=abs(DATA.dataval(probe,DATA.datainfo.psfxcol))>DATA.datainfo.psfx_threshold;%250nm good psfx
+invalid_y=abs(DATA.dataval(probe,DATA.datainfo.psfycol))>DATA.datainfo.psfy_threshold;%250nm good psfy
+invalid_z=abs(DATA.dataval(probe,DATA.datainfo.psfzcol))>DATA.datainfo.psfz_threshold;%1050nm good psfz
+sn_ratio=DATA.dataval(probe,DATA.datainfo.psfpccol)./sum(DATA.dataval(probe,[DATA.datainfo.bg11col,DATA.datainfo.bg12col,DATA.datainfo.bg21col,DATA.datainfo.bg22col]),2);%psf-photon-count/background11
+subplot(2,4,5);
+histogram(sn_ratio,linspace(min(sn_ratio),max(sn_ratio),50));
+hold on;line([DATA.datainfo.snr_threshold,DATA.datainfo.snr_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('snr');hold off;
+invalid_snr=sn_ratio<DATA.datainfo.snr_threshold;
+chisq=DATA.dataval(probe,DATA.datainfo.chisqcol)./DATA.dataval(probe,DATA.datainfo.psfpccol);
+subplot(2,4,6);
+histogram(chisq,linspace(min(chisq),max(chisq),50));
+hold on;line([DATA.datainfo.chisq_threshold,DATA.datainfo.chisq_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('chisq');hold off;
+invalid_chisq=chisq>=DATA.datainfo.chisq_threshold;
+loglike=DATA.dataval(probe,DATA.datainfo.loglhcol)./DATA.dataval(probe,DATA.datainfo.psfpccol);
+subplot(2,4,7);histogram(loglike,linspace(-2,0,50));
+hold on;line([DATA.datainfo.loglike_threshold,DATA.datainfo.loglike_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('loglike');hold off;
+invalid_loglike=loglike>DATA.datainfo.loglike_threshold;
+accuracy=DATA.dataval(probe,DATA.datainfo.accuracycol);
+subplot(2,4,8);
+histogram(accuracy,linspace(min(accuracy),max(accuracy),50));
+hold on;line([DATA.datainfo.accuracy_threshold,DATA.datainfo.accuracy_threshold],get(gca,'YLim'),'LineStyle','--','LineWidth',3,'Color','r');title('accuracy');hold off;
+invalid_accuracy=accuracy<=DATA.datainfo.accuracy_threshold;
+% combine all
+invalid=invalid_accum|invalid_x|invalid_y|invalid_z|invalid_snr|invalid_chisq|invalid_loglike|invalid_accuracy;
+fh=figure(1753);
+% plot scatter to compare
+subplot(1,2,1);set(gca,'Color',[0,0,0]);
+plot3(DATA.dataval(probe(~invalid),DATA.datainfo.xcol),DATA.dataval(probe(~invalid),DATA.datainfo.ycol),DATA.dataval(probe(~invalid),DATA.datainfo.zcol),...
+    'LineStyle','none','Marker','.','Color',DATA.datainfo.probe_colours(probeidx),...
+    'MarkerSize',1);
+set(gca,'Color',[0,0,0]);
+title('Cleaned (close figure to chose)');
+xlim([DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
+ylim([DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
+zlim([DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
+view(gca,3);
+daspect(gca,[1 1 1]);
+subplot(1,2,2);
+plot3(DATA.dataval(probe,DATA.datainfo.xcol),DATA.dataval(probe,DATA.datainfo.ycol),DATA.dataval(probe,DATA.datainfo.zcol),...
+    'LineStyle','none','Marker','.','Color',DATA.datainfo.probe_colours(probeidx),...
+    'MarkerSize',1);
+set(gca,'Color',[0,0,0]);
+title('Original');
+xlim([DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
+ylim([DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
+zlim([DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
+view(gca,3);
+daspect(gca,[1 1 1]);
+uiwait(fh);
+% ask if you want to do this
+answer=questdlg('Do you want to apply this operation? It is irreversible!!','reduce_dubious_localisation','Yes','No','Yes');
+if strcmp(answer,'Yes')
+    DATA.dataval(probe(invalid),:)=[];
+end
+
+function make_cluster(handles)
+global DATA;
+try
+    % make clusters using clusterdata function
+    pidx=handles.MENU_PROBE.Value;
+    probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(pidx));
+    position=DATA.dataval(probe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+    if size(position,1)<8e4
+        savemem='off';
+    else
+        savemem='on';
+    end
+    %create waitbar for user attention
+    waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
+        'CreateCancelBtn',...
+        'setappdata(gcbf,''canceling'',1)',...
+        'WindowStyle','normal',...
+        'Color',[0.2,0.2,0.2]);
+    setappdata(waitbar_handle,'canceling',0);
+    T = clusterdata(position,'criterion','distance','cutoff',DATA.datainfo.localdist(pidx),'distance','euclidean','linkage','median','savememory',savemem);
+    [clustersize,~,~]=histcounts(T,0.5:1:max(T)+0.5);
+    validclusterid=find(clustersize>DATA.datainfo.min_cluster_size(pidx));
+    xlim(handles.PANEL_CLUSTER,[DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
+    ylim(handles.PANEL_CLUSTER,[DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
+    zlim(handles.PANEL_CLUSTER,[DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
+    n_cluster=numel(validclusterid);
+    DATA.probe(pidx).cluster=[];
+    for clusteridx=1:n_cluster
+        %output some progress so we know it is doing things
+        if getappdata(waitbar_handle,'canceling')
+            fprintf('make cluster calculation cancelled\n');
+            delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+            return;
+        end
+        clusterid=validclusterid(clusteridx);
+        particle_idx=(T==clusterid);
+        DATA.probe(pidx).cluster(clusteridx).index=probe(particle_idx);
+        P_cluster=[position(particle_idx,1),position(particle_idx,2),position(particle_idx,3)];
+        %k=boundary(P_cluster,1);
+        %DATA.probe(pidx).cluster(clusteridx).surface=k;
+        temp=alphaShape(P_cluster,1,'HoleThreshold',0.2);
+        pc=criticalAlpha(temp,'one-region');
+        temp.Alpha=pc;
+        DATA.probe(pidx).cluster(clusteridx).shape=temp;
+        DATA.probe(pidx).cluster(clusteridx).volume=volume(temp);
+        DATA.probe(pidx).cluster(clusteridx).area=surfaceArea(temp);
+        [~,C,~,D] = kmeans(P_cluster,1);
+        DATA.probe(pidx).cluster(clusteridx).centroid=C;
+        DATA.probe(pidx).cluster(clusteridx).Dist=D;
+        showcluster(pidx, clusteridx, handles);
+        
+        % Report current estimate in the waitbar's message field
+        done=clusteridx/n_cluster;
+        waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+    end
+    delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+    view(handles.PANEL_CLUSTER,3);
+    daspect(handles.PANEL_CLUSTER,[1 1 1]);
+    % update cluster info table
+    display_clusterinfo(pidx,handles);
+    msgbox(sprintf('%s clustering successfully analysed.\nIt has %g clusters.\nUse localdist and min_cluster_size are variable parameters.',DATA.datainfo.(cat(2,'probe',num2str(DATA.datainfo.p(pidx)),'_name')),n_cluster),'Cluster Analysis','modal');
+catch exception
+    if exist('waitbar_handle','var')&&ishandle(waitbar_handle)
+        delete(waitbar_handle);
+    end
+    errordlg(exception.message,'Calculation Error','modal');
+end
+
+function search_cluster_neighbour(handles)
+% find pairing using centroid positions and minimum distance requirement
+% using k nearest neighbour function
+global DATA;
+try
+    % update probe menu
+    fname=fieldnames(DATA.datainfo);
+    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    probe_list=cell(DATA.datainfo.n_probe,1);
+    for idx=1:DATA.datainfo.n_probe
+        probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
+    end
+    set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolForegroundColor','k');
+    [s,v] = listdlg('PromptString','Select neighbouring probe:',...
+        'SelectionMode','multiple',...
+        'ListString',probe_list);
+    set(0,'DefaultUicontrolBackgroundColor','k');
+    set(0,'DefaultUicontrolForegroundColor','w');
+    if v%validated by click on OK
+        currentprobe=handles.MENU_PROBE.Value;
+        currentcentroid=cell2mat({DATA.probe(currentprobe).cluster.centroid}');
+        n_cluster=numel(DATA.probe(currentprobe).cluster);
+        %create waitbar for user attention
+        waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
+            'CreateCancelBtn',...
+            'setappdata(gcbf,''canceling'',1)',...
+            'WindowStyle','normal',...
+            'Color',[0.2,0.2,0.2]);
+        setappdata(waitbar_handle,'canceling',0);
+        for probeidx=1:numel(s)%go through each probe including self if selected
+            othercentroid=cell2mat({DATA.probe(s(probeidx)).cluster.centroid}');
+            if currentprobe==s(probeidx)%nearest neighbour of same kind
+                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
+                    'K',2,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
+                IDX(:,1)=[];D(:,1)=[];
+            else%nearest neighbour of a different kind
+                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
+                    'K',1,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
+            end
+            for clusterid=1:n_cluster
+                %output some progress so we know it is doing things
+                if getappdata(waitbar_handle,'canceling')
+                    fprintf('search cluster neighbour calculation cancelled\n');
+                    delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+                    return;
+                end
+                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_id'))=IDX(clusterid);
+                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_dist'))=D(clusterid);
+                % Report current estimate in the waitbar's message field
+                done=clusterid/n_cluster;
+                waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+            end
+        end
+        delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+        display_clusterinfo(currentprobe,handles);
+        msgbox(sprintf('%s nearest neighbour cluster search successfully analysed.\n',DATA.datainfo.(cat(2,'probe',num2str(DATA.datainfo.p(s(probeidx))),'_name'))),'Cluster Analysis','modal');
+    else
+        errordlg(sprintf('search neighbour cancelled\n'));
+    end
+catch exception
+    if exist('waitbar_handle','var')&&ishandle(waitbar_handle)
+        delete(waitbar_handle);
+    end
+    errordlg(exception.message,'Calculation Error','modal');
+end
+
+function search_site_neighbour(handles)
+% find pairing using centroid positions and minimum distance requirement
+% using k nearest neighbour function
+global DATA;
+try
+    % update probe menu
+    fname=fieldnames(DATA.datainfo);
+    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    probe_list=cell(DATA.datainfo.n_probe,1);
+    for idx=1:DATA.datainfo.n_probe
+        probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
+    end
+    set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolForegroundColor','k');
+    [s,v] = listdlg('PromptString','Select neighbouring probe:',...
+        'SelectionMode','multiple',...
+        'ListString',probe_list);
+    set(0,'DefaultUicontrolBackgroundColor','k');
+    set(0,'DefaultUicontrolForegroundColor','w');
+    if v%validated by click on OK
+        plotcount=0;
+        currentprobe=handles.MENU_PROBE.Value;
+        selected_cluster=handles.TABLE_CLUSTERINFO.Data(handles.TABLE_CLUSTERINFO.UserData,1);
+        currentcentroid=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid}');
+        n_cluster=numel(selected_cluster);
+        prox_dist=2*max(DATA.datainfo.localdist);
+        for probeidx=1:numel(s)%go through each probe including self if selected
+            otherprobe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(s(probeidx));
+            othersite=DATA.dataval(otherprobe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+            for clusterid=1:n_cluster
+                d_len=bsxfun(@minus,currentcentroid(clusterid,:),othersite);
+                [az,el,rad]=cart2sph(d_len(:,1),d_len(:,2),d_len(:,3));
+                az=rad2deg(az);el=rad2deg(el);
+                proximity=rad<=prox_dist;
+                fh=figure(135+plotcount);
+                fh.Name=sprintf('Nearest %s Site Distance to cluster%g Centroid',probe_list{s(probeidx)},selected_cluster(clusterid));
+                fh.Position=[0,0,900,600];
+                subplot(2,1,1,'Parent',fh);
+                histogram2(az(proximity),el(proximity),-180:5:180,-180:5:180);view([0,90]);axis('square');
+                xlabel('az (^o)','FontSize',8);
+                ylabel('el (^o)','FontSize',8);
+                subplot(2,1,2,'Parent',fh);
+                histogram(rad(proximity),linspace(0,prox_dist,20));
+                xlabel('r (\mum)','FontSize',8);
+                %radial_dist{probeidx,clusterid}=[rad(proximity),az(proximity),el(proximity)];
+                plotcount=plotcount+1;
+            end
+        end
+        %display_clusterinfo(currentprobe,handles);
+        msgbox(sprintf('%s nearest neighbour site search successfully analysed.\n',probe_list{s(probeidx)}),'Cluster Analysis','modal');
+    else
+        errordlg(sprintf('search neighbour cancelled\n'));
+    end
+catch exception
+    if exist('waitbar_handle','var')&&ishandle(waitbar_handle)
+        delete(waitbar_handle);
+    end
+    errordlg(exception.message,'Calculation Error','modal');
+end
+
+function intercluster_distribution(handles)
+% calculate the distribution of cluster sites to its centroid and the
+% distribution of the shortest distance of the sites of neighbouring
+% cluster to current cluster
+global DATA;
+try
+    temp=handles.TABLE_CLUSTERINFO.Data;
+    probeidx=handles.MENU_PROBE.Value;
+    selectedrow=handles.TABLE_CLUSTERINFO.UserData;
+    n_site=numel(selectedrow);
+    fh=figure(probeidx);
+    fh.Name='Nearest Neighbour Cluster Distance to Their Centroid';
+    fh.Position=[0,0,900,600];
+    %create waitbar for user attention
+    waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
+        'CreateCancelBtn',...
+        'setappdata(gcbf,''canceling'',1)',...
+        'WindowStyle','normal',...
+        'Color',[0.2,0.2,0.2]);
+    setappdata(waitbar_handle,'canceling',0);
+    for ridx=1:n_site
+        %output some progress so we know it is doing things
+        if getappdata(waitbar_handle,'canceling')
+            fprintf('make cluster calculation cancelled\n');
+            delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+            return;
+        end
+        rowidx=selectedrow(ridx);
+        pc_idx=temp(rowidx,1);
+        pc_cluster=DATA.probe(probeidx).cluster(pc_idx);
+        % distance distribution of individual clusters
+        for pidx=1:DATA.datainfo.n_probe
+            if isfield(pc_cluster,cat(2,'nnc',num2str(pidx-1),'_id'))
+                if probeidx~=pidx
+                    clusterid=pc_cluster.(cat(2,'nnc',num2str(pidx-1),'_id'));
+                    po_cluster=DATA.probe(pidx).cluster(clusterid);
+                    sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx,'Parent',fh);
+                    hist(sh1,po_cluster.Dist,20);
+                    sh1.YTickLabel=[];
+                    pairedDist{pidx,ridx} = pdist2(po_cluster.shape.Points,pc_cluster.shape.Points,'euclidean','Smallest',1); %#ok<AGROW>
+                    sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx+3,'Parent',fh);
+                    hist(sh2,pairedDist{pidx,ridx},20);
+                    sh2.YTickLabel=[];
+                    ylabel(sh1,sprintf('cluster%g',pc_idx),'FontSize',8);
+                    if ridx==n_site
+                        centroid_dist{pidx}=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))]'; %#ok<AGROW>
+                        xlabel(sh1,'r (\mum)','FontSize',8);
+                        xlabel(sh2,'r (\mum)','FontSize',8);
+                    end
+                    if ridx==1
+                        title(sh1,sprintf('nn %s cluster',eval(cat(2,'DATA.datainfo.probe',num2str(pidx-1),'_name'))),'FontSize',8);
+                        title(sh2,sprintf('d_{shortest} to nn %s sites',eval(cat(2,'DATA.datainfo.probe',num2str(pidx-1),'_name'))),'FontSize',8);
+                    end
+                else
+                    sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx,'Parent',fh);
+                    hist(sh1,pc_cluster.Dist,20);
+                    sh1.YTickLabel=[];
+                    clusterid=pc_cluster.(cat(2,'nnc',num2str(pidx-1),'_id'));
+                    po_cluster=DATA.probe(pidx).cluster(clusterid);
+                    % only find distance to the next neighbour of the same kind
+                    pairedDist{pidx,ridx} = pdist2(po_cluster.shape.Points,pc_cluster.shape.Points,'euclidean','Smallest',1); %#ok<AGROW>
+                    sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx+3,'Parent',fh);
+                    hist(sh2,pairedDist{pidx,ridx},20);
+                    sh2.YTickLabel=[];
+                    ylabel(sh1,sprintf('cluster%g',pc_idx),'FontSize',8);
+                    if ridx==n_site
+                        centroid_dist{pidx}=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))]'; %#ok<AGROW>
+                        xlabel(sh1,'r (\mum)','FontSize',8);
+                        xlabel(sh2,'r (\mum)','FontSize',8);
+                    end
+                    if ridx==1
+                        title(sh1,sprintf('selected %s cluster',eval(cat(2,'DATA.datainfo.probe',num2str(pidx-1),'_name'))),'FontSize',8);
+                        title(sh2,sprintf('d_{shortest} to nn %s sites',eval(cat(2,'DATA.datainfo.probe',num2str(pidx-1),'_name'))),'FontSize',8);
+                    end
+                end
+                if pidx==0
+                    ylabel(sh1,num2str(pc_idx),'FontSize',8);
+                end
+            end
+        end
+        % Report current estimate in the waitbar's message field
+        done=ridx/n_site;
+        waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+    end
+    
+    fh=figure(2357);
+    fname=fieldnames(DATA.datainfo);
+    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    plotcount=1;
+    for idx=1:DATA.datainfo.n_probe
+        temp=cell2mat(pairedDist(idx,:))';
+        if ~isempty(temp)
+            [N,edges] = histcounts(temp,max(round(numel(temp)/10),10));
+            sh=subplot(2,1,1,'Parent',fh);
+            line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
+            probe_list{plotcount}=DATA.datainfo.(fname{fidx(idx)}); %#ok<AGROW>
+            plotcount=plotcount+1;
+        end
+        if ~isempty(centroid_dist{idx})
+            [N,edges] = histcounts(centroid_dist{idx},max(round(numel(centroid_dist{idx})/10),10));
+            sh=subplot(2,1,2,'Parent',fh);
+            line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
+        end
+    end
+    sh=subplot(2,1,1,'Parent',fh);
+    xlabel(sh,'r (\mum)','FontSize',8);
+    title(sh,sprintf('distribution of mean nn site distance between nn clusters'));
+    legend(sh,probe_list);
+    sh=subplot(2,1,2,'Parent',fh);
+    xlabel(sh,'r (\mum)','FontSize',8);
+    title(sh,sprintf('distribution of centroid distance between nn clusters'));
+    legend(sh,probe_list);
+    delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+catch exception
+    if exist('waitbar_handle','var')&&ishandle(waitbar_handle)
+        delete(waitbar_handle);
+    end
+    errordlg(exception.message,'Calculation Error','modal');
+end
+
+function identify_synapse(handles)
+global DATA;
+try
+    probeidx=handles.MENU_PROBE.Value;
+    %selectedrow=handles.TABLE_CLUSTERINFO.UserData;
+    % update probe menu
+    fname=fieldnames(DATA.datainfo);
+    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    probe_list=cell(DATA.datainfo.n_probe,1);
+    for idx=1:DATA.datainfo.n_probe
+        probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
+    end
+    set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolForegroundColor','k');
+    [s,v] = listdlg('PromptString','Select neighbouring probe:',...
+        'SelectionMode','multiple',...
+        'ListString',probe_list);
+    set(0,'DefaultUicontrolBackgroundColor','k');
+    set(0,'DefaultUicontrolForegroundColor','w');
+    if v%validated by click on OK
+        n_site=numel(DATA.probe(probeidx).cluster);
+        %create waitbar for user attention
+        waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
+            'CreateCancelBtn',...
+            'setappdata(gcbf,''canceling'',1)',...
+            'WindowStyle','normal',...
+            'Color',[0.2,0.2,0.2]);
+        setappdata(waitbar_handle,'canceling',0);
+        for pc_idx=1:n_site
+            pc_cluster=DATA.probe(probeidx).cluster(pc_idx);
+            po_idx=DATA.probe(probeidx).cluster(pc_idx).(cat(2,'nnc',num2str(s-1),'_id'));
+            po_cluster=DATA.probe(s).cluster(po_idx);
+            pc_pts=pc_cluster.shape.Points;
+            po_pts=po_cluster.shape.Points;
+            [d,Ind]=pdist2(po_pts,pc_pts,'euclidean','Smallest',1);
+            synapse_pc=find(d<=DATA.datainfo.synaptic_range(1));
+            if ~isempty(synapse_pc)
+                if (numel(synapse_pc)/numel(pc_pts)<DATA.datainfo.per_synapse)
+                    synapse_po=Ind(synapse_pc);
+                    [~,Centre,~,Dist] = kmeans([pc_pts(synapse_pc,:);po_pts(synapse_po,:)],1);
+                    meanptc_dist=[mean(Dist),median(Dist),max(Dist)];
+                    pdistrec{pc_idx}=d;
+                    [~,pind]=min(d);
+                    loc=(pc_pts(pind(1),:)+po_pts(Ind(pind(1)),:))/2;%half way of closes site pair
+                    distrec{pc_idx}=Dist;
+                else
+                    Centre=[nan,nan,nan];
+                    loc=[nan,nan,nan];
+                    meanptc_dist=[nan,nan,nan];
+                end
+            else
+                Centre=[nan,nan,nan];
+                loc=[nan,nan,nan];
+                meanptc_dist=[nan,nan,nan];
+            end
+            DATA.probe(probeidx).cluster(pc_idx).('centroid_synapse')=Centre;
+            DATA.probe(probeidx).cluster(pc_idx).('loc_synapse')=loc;
+            DATA.probe(probeidx).cluster(pc_idx).('mean_dist_synapse')=meanptc_dist;
+            % Report current estimate in the waitbar's message field
+            done=pc_idx/n_site;
+            waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+        end
+        delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+        fh=figure(probeidx);
+        fh.Name=sprintf('%s synapse search against %s',probe_list{probeidx},probe_list{s});
+        fh.Position=[0,0,900,600];
+        temp=cell2mat(pdistrec);
+        subplot(2,1,1,'Parent',fh);
+        histogram(temp(:),50);
+        xlabel('r (\mum)','FontSize',8);
+        title(sprintf('%s to %s site synapse pairwise distances',probe_list{probeidx},probe_list{s}));
+        temp=cell2mat(distrec');
+        subplot(2,1,2,'Parent',fh);
+        histogram(temp(:),50);
+        xlabel('r (\mum)','FontSize',8);
+        title(sprintf('%s and %s to synapse centroid distances',probe_list{probeidx},probe_list{s}));
+        display_clusterinfo(probeidx,handles);
+        msgbox(sprintf('%s synapse search against %s successfully analysed.\n',probe_list{probeidx},probe_list{s}),'Cluster Analysis','modal');
+    end
+catch exception
+    if exist('waitbar_handle','var')&&ishandle(waitbar_handle)
+        delete(waitbar_handle);
+    end
+    errordlg(exception.message,'Calculation Error','modal');
+end
+
+function synapse_nn_site(handles)
+global DATA;
+try
+    % update probe menu
+    fname=fieldnames(DATA.datainfo);
+    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    probe_list=cell(DATA.datainfo.n_probe,1);
+    for idx=1:DATA.datainfo.n_probe
+        probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
+    end
+    set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolForegroundColor','k');
+    [s,v] = listdlg('PromptString','Select neighbouring probe:',...
+        'SelectionMode','multiple',...
+        'ListString',probe_list);
+    set(0,'DefaultUicontrolBackgroundColor','k');
+    set(0,'DefaultUicontrolForegroundColor','w');
+    if v%validated by click on OK
+        currentprobe=handles.MENU_PROBE.Value;
+        currentcentroid=cell2mat({DATA.probe(currentprobe).cluster.centroid}');
+        n_cluster=numel(DATA.probe(currentprobe).cluster);
+        %create waitbar for user attention
+        waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
+            'CreateCancelBtn',...
+            'setappdata(gcbf,''canceling'',1)',...
+            'WindowStyle','normal',...
+            'Color',[0.2,0.2,0.2]);
+        setappdata(waitbar_handle,'canceling',0);
+        for probeidx=1:numel(s)%go through each probe including self if selected
+            othercentroid=cell2mat({DATA.probe(s(probeidx)).cluster.centroid}');
+            if currentprobe==s(probeidx)%nearest neighbour of same kind
+                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
+                    'K',2,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
+                IDX(:,1)=[];D(:,1)=[];
+            else%nearest neighbour of a different kind
+                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
+                    'K',1,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
+            end
+            for clusterid=1:n_cluster
+                %output some progress so we know it is doing things
+                if getappdata(waitbar_handle,'canceling')
+                    fprintf('search cluster neighbour calculation cancelled\n');
+                    delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+                    return;
+                end
+                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_id'))=IDX(clusterid);
+                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_dist'))=D(clusterid);
+                % Report current estimate in the waitbar's message field
+                done=clusterid/n_cluster;
+                waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+            end
+        end
+        delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+        display_clusterinfo(currentprobe,handles);
+        msgbox(sprintf('%s nearest neighbour cluster search successfully analysed.\n',DATA.datainfo.(cat(2,'probe',num2str(DATA.datainfo.p(s(probeidx))),'_name'))),'Cluster Analysis','modal');
+    else
+        errordlg(sprintf('search neighbour cancelled\n'));
+    end
+catch exception
+    if exist('waitbar_handle','var')&&ishandle(waitbar_handle)
+        delete(waitbar_handle);
+    end
+    errordlg(exception.message,'Calculation Error','modal');
+end
