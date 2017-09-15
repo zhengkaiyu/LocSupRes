@@ -1,9 +1,9 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration build-checksum="3452219885" file="D:\Dropbox\ION\test\LOCSUPRES\MAIN_GUI.prj" location="D:\Dropbox\ION\test\LOCSUPRES" name="MAIN_GUI" target="target.mlapps" target-name="Package App">
+  <configuration build-checksum="242373765" file="D:\Dropbox\ION\LOCSUPRES\MAIN_GUI.prj" location="D:\Dropbox\ION\LOCSUPRES" name="MAIN_GUI" target="target.mlapps" target-name="Package App">
     <param.appname>MAIN_GUI</param.appname>
-    <param.authnamewatermark />
-    <param.email />
-    <param.company />
+    <param.authnamewatermark>Kaiyu Zhengk</param.authnamewatermark>
+    <param.email>k.zheng@ucl.ac.uk</param.email>
+    <param.company>UCL</param.company>
     <param.icon />
     <param.icons />
     <param.summary />
@@ -14,12 +14,9 @@
     <param.products.id />
     <param.products.version />
     <param.platforms />
-    <param.output>D:\Dropbox\ION\test\LOCSUPRES</param.output>
+    <param.output>D:\Dropbox\ION\LOCSUPRES</param.output>
     <param.guid>14eed17d-e7c6-42b8-b84a-a8444e47d1a4</param.guid>
     <unset>
-      <param.authnamewatermark />
-      <param.email />
-      <param.company />
       <param.icon />
       <param.icons />
       <param.summary />
@@ -41,7 +38,7 @@
     <fileset.resources />
     <fileset.package />
     <build-deliverables>
-      <file location="D:\Dropbox\ION\test" name="LOCSUPRES" optional="false">D:\Dropbox\ION\test\LOCSUPRES</file>
+      <file location="D:\Dropbox\ION" name="LOCSUPRES" optional="false">D:\Dropbox\ION\LOCSUPRES</file>
     </build-deliverables>
     <workflow />
     <matlab>
