@@ -1,12 +1,12 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration build-checksum="242373765" file="D:\Dropbox\ION\LOCSUPRES\MAIN_GUI.prj" location="D:\Dropbox\ION\LOCSUPRES" name="MAIN_GUI" target="target.mlapps" target-name="Package App">
-    <param.appname>MAIN_GUI</param.appname>
+  <configuration build-checksum="3305583814" file="D:\Dropbox\ION\LOCSUPRES\LocSupRes Analysis.prj" location="D:\Dropbox\ION\LOCSUPRES" name="LocSupRes Analysis" target="target.mlapps" target-name="Package App">
+    <param.appname>LocSupRes Analysis</param.appname>
     <param.authnamewatermark>Kaiyu Zhengk</param.authnamewatermark>
     <param.email>k.zheng@ucl.ac.uk</param.email>
     <param.company>UCL</param.company>
     <param.icon />
     <param.icons />
-    <param.summary />
+    <param.summary>Localisation Super resolution imaging analysis from Bruker csv file</param.summary>
     <param.description />
     <param.screenshot />
     <param.version>1.0</param.version>
@@ -19,7 +19,6 @@
     <unset>
       <param.icon />
       <param.icons />
-      <param.summary />
       <param.description />
       <param.screenshot />
       <param.version />
