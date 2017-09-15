@@ -200,16 +200,18 @@ if data_pathname~=0     %if files selected
         DATA.datainfo.T=T_scale';
         DATA.datainfo.probe_colours=DEFAULT_COLOUR(1:p_size);
         probe_list=cell(p_size,1);
-        for probeidx=1:p_size
-            probe_list{probeidx}=cat(2,'probe',num2str(p_scale(probeidx)));
-            DATA.datainfo.(cat(2,'probe',num2str(p_scale(probeidx)),'_name'))=probe_list{probeidx};
-            DATA.probe(probeidx).cluster=[];
-        end
         DATA.datainfo.min_cluster_size=repmat(DATA.datainfo.min_cluster_size(1),1,DATA.datainfo.n_probe);
         DATA.datainfo.localdist=repmat(DATA.datainfo.localdist(1),1,DATA.datainfo.n_probe);
         DATA.dataval=val(valid,:);
         % convert position from nm to um
         DATA.dataval(:,[DATA.datainfo.psfxcol,DATA.datainfo.psfycol,DATA.datainfo.psfzcol,DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol])=DATA.dataval(:,[DATA.datainfo.psfxcol,DATA.datainfo.psfycol,DATA.datainfo.psfzcol,DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol])/1000;
+        for probeidx=1:p_size
+            probe_list{probeidx}=cat(2,'probe',num2str(p_scale(probeidx)));
+            DATA.datainfo.(cat(2,'probe',num2str(p_scale(probeidx)),'_name'))=probe_list{probeidx};
+            DATA.probe(probeidx).cluster=[];
+            probe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx);
+            DATA.probe(probeidx).location=DATA.dataval(probe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+        end
         DATA.datainfo.last_change=datestr(now);
         
         % update datainfo table
@@ -251,12 +253,8 @@ switch fname{eventdata.Indices(1)}
             val=repmat(val(1),1,DATA.datainfo.n_probe);
         end
         DATA.datainfo.(fname{eventdata.Indices(1)})=val;
-    case 'synaptic_range'
-        val=str2num(eventdata.NewData);
-        if numel(val)~=DATA.datainfo.n_probe
-            val=repmat(val(1),1,DATA.datainfo.n_probe);
-        end
-        DATA.datainfo.(fname{eventdata.Indices(1)})=val;
+    case {'synaptic_range','per_synapse'}
+        DATA.datainfo.(fname{eventdata.Indices(1)})=str2double(eventdata.NewData);
     case {'slice_int','isoval'}
         val=str2num(eventdata.NewData);
         if numel(val)~=DATA.datainfo.n_probe
@@ -501,11 +499,11 @@ handles.TOGGLE_HOLDPANELSCATTER3D.Value=false;
 handles.TOGGLE_HOLDPANELCLUSTER.Value=false;
 handles.MENU_ANALYSOR.String={'reduce_dubious_localisation',...
     'make_cluster',...
-    'search_cluster_neighbour',...
-    'search_site_neighbour',...
+    'analyse_cluster_neighbour',...
+    'analyse_site_neighbour',...
     'intercluster_distribution',...
     'identify_synapse',...
-    'synapse_nn_site'};
+    'analyse_synapse_nn_site'};
 handles.MENU_ANALYSOR.Value=1;
 handles.MENU_.Value=1;
 % SET PANEL_SCATTER3D PARAMETERS
@@ -586,22 +584,22 @@ function showlocation(handles)
 global DATA;
 % get probe index
 probeidx=handles.MENU_PROBE.Value;
-probe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx);
+%probe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx);
 % plot
-plot3(handles.PANEL_SCATTER3D,DATA.dataval(probe,DATA.datainfo.xcol),DATA.dataval(probe,DATA.datainfo.ycol),DATA.dataval(probe,DATA.datainfo.zcol),...
+plot3(handles.PANEL_SCATTER3D,DATA.probe(probeidx).location(:,1),DATA.probe(probeidx).location(:,2),DATA.probe(probeidx).location(:,3),...
     'LineStyle','none','Marker','.','Color',DATA.datainfo.probe_colours(probeidx),...
     'MarkerSize',1);
 xlim(handles.PANEL_SCATTER3D,[DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
 ylim(handles.PANEL_SCATTER3D,[DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
 zlim(handles.PANEL_SCATTER3D,[DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
-view(handles.PANEL_SCATTER3D,3);
+view(handles.PANEL_SCATTER3D,2);
 daspect(handles.PANEL_SCATTER3D,[1 1 1]);
 
 function showimage(handles)
 global DATA;
 % get probe index
 probeidx=handles.MENU_PROBE.Value;
-probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx));
+%probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx));
 X_scale=DATA.datainfo.X;
 X_res=DATA.datainfo.dX;
 Y_scale=DATA.datainfo.Y;
@@ -611,13 +609,13 @@ Z_res=DATA.datainfo.dZ;
 val=zeros(DATA.datainfo.data_dim(2),DATA.datainfo.data_dim(3),DATA.datainfo.data_dim(4));
 for zslice=1:DATA.datainfo.data_dim(4)
     % go through each z slices
-    currentzidx=find(DATA.dataval(probe,DATA.datainfo.zcol)>(Z_scale(zslice)-Z_res/2)&DATA.dataval(probe,DATA.datainfo.zcol)<=(Z_scale(zslice)+Z_res/2));
-    [temp,~,~,binx,biny]=histcounts2(DATA.dataval(probe(currentzidx),DATA.datainfo.xcol),DATA.dataval(probe(currentzidx),DATA.datainfo.ycol),[X_scale-X_res/2;X_scale(end)+X_res/2],[Y_scale-Y_res/2;Y_scale(end)+Y_res/2]);
+    currentzidx=find(DATA.probe(probeidx).location(:,3)>(Z_scale(zslice)-Z_res/2)&DATA.probe(probeidx).location(:,3)<=(Z_scale(zslice)+Z_res/2));
+    [temp,~,~,binx,biny]=histcounts2(DATA.probe(probeidx).location(currentzidx,1),DATA.probe(probeidx).location(currentzidx,2),[X_scale-X_res/2;X_scale(end)+X_res/2],[Y_scale-Y_res/2;Y_scale(end)+Y_res/2]);
     if DATA.datainfo.scaled
         for idx=1:numel(currentzidx)
             if binx(idx)>0
                 %scaling using column 15
-                val(binx(idx),biny(idx),zslice)=temp(binx(idx),biny(idx),zslice)+DATA.dataval(probe(currentzidx(idx)),16);
+                %val(binx(idx),biny(idx),zslice)=temp(binx(idx),biny(idx),zslice)+DATA.dataval(probe(currentzidx(idx)),16);
             end
         end
     end
@@ -650,7 +648,7 @@ isonormals(y,x,z,val,p);
 p.FaceColor = DATA.datainfo.probe_colours(probeidx);
 p.EdgeColor = 'none';
 p.FaceAlpha=0.3;
-view(handles.PANEL_SCATTER3D,3);
+view(handles.PANEL_SCATTER3D,2);
 daspect(handles.PANEL_SCATTER3D,[1 1 1]);
 
 function display_clusterinfo( probeidx, handles )
@@ -742,16 +740,18 @@ if isempty(handles)
         'EdgeColor','w',...
         'EdgeAlpha',0.2,...
         'FaceAlpha',0.5)
-    view(gca,3);
+    view(gca,2);
     daspect(gca,[1 1 1]);
+    xlim('auto');ylim('auto');zlim('auto');
 else
     plot(DATA.probe(probeidx).cluster(cidx).shape,'Facecolor',DATA.datainfo.probe_colours(probeidx),...
         'EdgeColor','w',...
         'EdgeAlpha',0.2,...
         'FaceAlpha',0.5,...
         'Parent',handles.PANEL_CLUSTER);
-    view(handles.PANEL_CLUSTER,3);
+    view(handles.PANEL_CLUSTER,2);
     daspect(handles.PANEL_CLUSTER,[1 1 1]);
+    xlim('auto');ylim('auto');zlim('auto');
 end
 
 %==User Functions for analysor============================================
@@ -810,7 +810,7 @@ title('Cleaned (close figure to chose)');
 xlim([DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
 ylim([DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
 zlim([DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
-view(gca,3);
+view(gca,2);
 daspect(gca,[1 1 1]);
 subplot(1,2,2);
 plot3(DATA.dataval(probe,DATA.datainfo.xcol),DATA.dataval(probe,DATA.datainfo.ycol),DATA.dataval(probe,DATA.datainfo.zcol),...
@@ -821,13 +821,18 @@ title('Original');
 xlim([DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
 ylim([DATA.datainfo.Y(1),DATA.datainfo.Y(end)]);ylabel('Y');
 zlim([DATA.datainfo.Z(1),DATA.datainfo.Z(end)]);zlabel('Z');
-view(gca,3);
+view(gca,2);
 daspect(gca,[1 1 1]);
 uiwait(fh);
 % ask if you want to do this
-answer=questdlg('Do you want to apply this operation? It is irreversible!!','reduce_dubious_localisation','Yes','No','Yes');
-if strcmp(answer,'Yes')
-    DATA.dataval(probe(invalid),:)=[];
+answer=questdlg('Do you want to apply this operation? It is irreversible!!','reduce_dubious_localisation','Yes','No','Reset','Yes');
+switch answer
+    case 'Yes'
+        DATA.probe(probeidx).location=DATA.dataval(probe(~invalid),[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+    case 'Reset'
+        DATA.probe(probeidx).location=DATA.dataval(probe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+    case 'No'
+        
 end
 
 function make_cluster(handles)
@@ -835,8 +840,9 @@ global DATA;
 try
     % make clusters using clusterdata function
     pidx=handles.MENU_PROBE.Value;
-    probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(pidx));
-    position=DATA.dataval(probe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+    %probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(pidx));
+    %position=DATA.dataval(probe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
+    position=DATA.probe(pidx).location;
     if size(position,1)<8e4
         savemem='off';
     else
@@ -866,7 +872,7 @@ try
         end
         clusterid=validclusterid(clusteridx);
         particle_idx=(T==clusterid);
-        DATA.probe(pidx).cluster(clusteridx).index=probe(particle_idx);
+        DATA.probe(pidx).cluster(clusteridx).index=find(particle_idx);
         P_cluster=[position(particle_idx,1),position(particle_idx,2),position(particle_idx,3)];
         %k=boundary(P_cluster,1);
         %DATA.probe(pidx).cluster(clusteridx).surface=k;
@@ -879,14 +885,14 @@ try
         [~,C,~,D] = kmeans(P_cluster,1);
         DATA.probe(pidx).cluster(clusteridx).centroid=C;
         DATA.probe(pidx).cluster(clusteridx).Dist=D;
-        showcluster(pidx, clusteridx, handles);
+        %showcluster(pidx, clusteridx, handles);
         
         % Report current estimate in the waitbar's message field
         done=clusteridx/n_cluster;
         waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
     end
     delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
-    view(handles.PANEL_CLUSTER,3);
+    view(handles.PANEL_CLUSTER,2);
     daspect(handles.PANEL_CLUSTER,[1 1 1]);
     % update cluster info table
     display_clusterinfo(pidx,handles);
@@ -898,7 +904,7 @@ catch exception
     errordlg(exception.message,'Calculation Error','modal');
 end
 
-function search_cluster_neighbour(handles)
+function analyse_cluster_neighbour(handles)
 % find pairing using centroid positions and minimum distance requirement
 % using k nearest neighbour function
 global DATA;
@@ -929,27 +935,29 @@ try
             'Color',[0.2,0.2,0.2]);
         setappdata(waitbar_handle,'canceling',0);
         for probeidx=1:numel(s)%go through each probe including self if selected
-            othercentroid=cell2mat({DATA.probe(s(probeidx)).cluster.centroid}');
-            if currentprobe==s(probeidx)%nearest neighbour of same kind
-                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
-                    'K',2,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
-                IDX(:,1)=[];D(:,1)=[];
-            else%nearest neighbour of a different kind
-                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
-                    'K',1,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
-            end
-            for clusterid=1:n_cluster
-                %output some progress so we know it is doing things
-                if getappdata(waitbar_handle,'canceling')
-                    fprintf('search cluster neighbour calculation cancelled\n');
-                    delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
-                    return;
+            if ~isempty(DATA.probe(s(probeidx)).cluster)
+                othercentroid=cell2mat({DATA.probe(s(probeidx)).cluster.centroid}');
+                if currentprobe==s(probeidx)%nearest neighbour of same kind
+                    [IDX,D] = knnsearch(othercentroid,currentcentroid,...
+                        'K',2,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
+                    IDX(:,1)=[];D(:,1)=[];
+                else%nearest neighbour of a different kind
+                    [IDX,D] = knnsearch(othercentroid,currentcentroid,...
+                        'K',1,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
                 end
-                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_id'))=IDX(clusterid);
-                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_dist'))=D(clusterid);
-                % Report current estimate in the waitbar's message field
-                done=clusterid/n_cluster;
-                waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+                for clusterid=1:n_cluster
+                    %output some progress so we know it is doing things
+                    if getappdata(waitbar_handle,'canceling')
+                        fprintf('search cluster neighbour calculation cancelled\n');
+                        delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
+                        return;
+                    end
+                    DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_id'))=IDX(clusterid);
+                    DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_dist'))=D(clusterid);
+                    % Report current estimate in the waitbar's message field
+                    done=clusterid/n_cluster;
+                    waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+                end
             end
         end
         delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
@@ -965,7 +973,7 @@ catch exception
     errordlg(exception.message,'Calculation Error','modal');
 end
 
-function search_site_neighbour(handles)
+function analyse_site_neighbour(handles)
 % find pairing using centroid positions and minimum distance requirement
 % using k nearest neighbour function
 global DATA;
@@ -981,6 +989,7 @@ try
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
         'SelectionMode','multiple',...
+        'InitialValue',1:1:numel(probe_list),...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
     set(0,'DefaultUicontrolForegroundColor','w');
@@ -991,27 +1000,29 @@ try
         currentcentroid=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid}');
         n_cluster=numel(selected_cluster);
         prox_dist=2*max(DATA.datainfo.localdist);
-        for probeidx=1:numel(s)%go through each probe including self if selected
-            otherprobe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(s(probeidx));
-            othersite=DATA.dataval(otherprobe,[DATA.datainfo.xcol,DATA.datainfo.ycol,DATA.datainfo.zcol]);
-            for clusterid=1:n_cluster
+        for clusterid=1:n_cluster
+            fh=figure(135+plotcount);
+            fh.Name=sprintf('Nearest Probe Site Distance to probe %s cluster%g Centroid',probe_list{currentprobe},selected_cluster(clusterid));
+            fh.Position=[0,0,900,600];
+            for probeidx=1:numel(s)%go through each probe including self if selected
+                othersite=DATA.probe(s(probeidx)).location;
                 d_len=bsxfun(@minus,currentcentroid(clusterid,:),othersite);
                 [az,el,rad]=cart2sph(d_len(:,1),d_len(:,2),d_len(:,3));
-                az=rad2deg(az);el=rad2deg(el);
                 proximity=rad<=prox_dist;
-                fh=figure(135+plotcount);
-                fh.Name=sprintf('Nearest %s Site Distance to cluster%g Centroid',probe_list{s(probeidx)},selected_cluster(clusterid));
-                fh.Position=[0,0,900,600];
-                subplot(2,1,1,'Parent',fh);
-                histogram2(az(proximity),el(proximity),-180:5:180,-180:5:180);view([0,90]);axis('square');
+                rad=rad(proximity);
+                az=rad2deg(az(proximity));el=rad2deg(el(proximity));
+                subplot(2,numel(s),probeidx,'Parent',fh);
+                histogram2(az,el,-180:5:180,-90:5:90);view([0,90]);axis('equal');
                 xlabel('az (^o)','FontSize',8);
                 ylabel('el (^o)','FontSize',8);
-                subplot(2,1,2,'Parent',fh);
-                histogram(rad(proximity),linspace(0,prox_dist,20));
+                title(sprintf('Probe %s',probe_list{probeidx}));
+                subplot(2,numel(s),probeidx+numel(s),'Parent',fh);
+                histogram(rad,linspace(0,prox_dist,25));
                 xlabel('r (\mum)','FontSize',8);
+                title(sprintf('median = %f',median(rad)));
                 %radial_dist{probeidx,clusterid}=[rad(proximity),az(proximity),el(proximity)];
-                plotcount=plotcount+1;
             end
+            plotcount=plotcount+1;
         end
         %display_clusterinfo(currentprobe,handles);
         msgbox(sprintf('%s nearest neighbour site search successfully analysed.\n',probe_list{s(probeidx)}),'Cluster Analysis','modal');
@@ -1064,13 +1075,14 @@ try
                     sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx,'Parent',fh);
                     hist(sh1,po_cluster.Dist,20);
                     sh1.YTickLabel=[];
-                    pairedDist{pidx,ridx} = pdist2(po_cluster.shape.Points,pc_cluster.shape.Points,'euclidean','Smallest',1); %#ok<AGROW>
+                    pairedDist{pidx,ridx} = pdist2(DATA.probe(pidx).location(po_cluster.index,:),DATA.probe(probeidx).location(pc_cluster.index,:),'euclidean','Smallest',1); %#ok<AGROW>
                     sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx+3,'Parent',fh);
                     hist(sh2,pairedDist{pidx,ridx},20);
                     sh2.YTickLabel=[];
-                    ylabel(sh1,sprintf('cluster%g',pc_idx),'FontSize',8);
+                    ylabel(sh1,sprintf('cluster%g',clusterid),'FontSize',8);
                     if ridx==n_site
-                        centroid_dist{pidx}=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))]'; %#ok<AGROW>
+                        nnc_dist=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))];
+                        centroid_dist{pidx}=[nnc_dist(temp(selectedrow,1))]'; %#ok<AGROW>
                         xlabel(sh1,'r (\mum)','FontSize',8);
                         xlabel(sh2,'r (\mum)','FontSize',8);
                     end
@@ -1085,13 +1097,15 @@ try
                     clusterid=pc_cluster.(cat(2,'nnc',num2str(pidx-1),'_id'));
                     po_cluster=DATA.probe(pidx).cluster(clusterid);
                     % only find distance to the next neighbour of the same kind
-                    pairedDist{pidx,ridx} = pdist2(po_cluster.shape.Points,pc_cluster.shape.Points,'euclidean','Smallest',1); %#ok<AGROW>
+                    pairedDist{pidx,ridx} = pdist2(DATA.probe(pidx).location(po_cluster.index,:),DATA.probe(probeidx).location(pc_cluster.index,:),'euclidean','Smallest',1); %#ok<AGROW>
                     sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx+3,'Parent',fh);
                     hist(sh2,pairedDist{pidx,ridx},20);
                     sh2.YTickLabel=[];
                     ylabel(sh1,sprintf('cluster%g',pc_idx),'FontSize',8);
                     if ridx==n_site
-                        centroid_dist{pidx}=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))]'; %#ok<AGROW>
+                        %centroid_dist{pidx}=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))]'; %#ok<AGROW>
+                        nnc_dist=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))];
+                        centroid_dist{pidx}=[nnc_dist(temp(selectedrow,1))]'; %#ok<AGROW>
                         xlabel(sh1,'r (\mum)','FontSize',8);
                         xlabel(sh2,'r (\mum)','FontSize',8);
                     end
@@ -1109,7 +1123,6 @@ try
         done=ridx/n_site;
         waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
     end
-    
     fh=figure(2357);
     fname=fieldnames(DATA.datainfo);
     fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
@@ -1117,14 +1130,14 @@ try
     for idx=1:DATA.datainfo.n_probe
         temp=cell2mat(pairedDist(idx,:))';
         if ~isempty(temp)
-            [N,edges] = histcounts(temp,max(round(numel(temp)/10),10));
+            [N,edges] = histcounts(temp,max(round(numel(temp)/20),10));
             sh=subplot(2,1,1,'Parent',fh);
             line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
             probe_list{plotcount}=DATA.datainfo.(fname{fidx(idx)}); %#ok<AGROW>
             plotcount=plotcount+1;
         end
         if ~isempty(centroid_dist{idx})
-            [N,edges] = histcounts(centroid_dist{idx},max(round(numel(centroid_dist{idx})/10),10));
+            [N,edges] = histcounts(centroid_dist{idx},max(round(numel(centroid_dist{idx})/20),5));
             sh=subplot(2,1,2,'Parent',fh);
             line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
         end
@@ -1177,18 +1190,22 @@ try
             pc_cluster=DATA.probe(probeidx).cluster(pc_idx);
             po_idx=DATA.probe(probeidx).cluster(pc_idx).(cat(2,'nnc',num2str(s-1),'_id'));
             po_cluster=DATA.probe(s).cluster(po_idx);
-            pc_pts=pc_cluster.shape.Points;
-            po_pts=po_cluster.shape.Points;
+            %pc_pts=pc_cluster.shape.Points;
+            %po_pts=po_cluster.shape.Points;
+            pc_pts=DATA.probe(probeidx).location(DATA.probe(probeidx).cluster(pc_idx).index,:);
+            po_pts=DATA.probe(s).location(DATA.probe(s).cluster(po_idx).index,:);
             [d,Ind]=pdist2(po_pts,pc_pts,'euclidean','Smallest',1);
-            synapse_pc=find(d<=DATA.datainfo.synaptic_range(1));
-            if ~isempty(synapse_pc)
-                if (numel(synapse_pc)/numel(pc_pts)<DATA.datainfo.per_synapse)
-                    synapse_po=Ind(synapse_pc);
-                    [~,Centre,~,Dist] = kmeans([pc_pts(synapse_pc,:);po_pts(synapse_po,:)],1);
+            synapse_po=Ind(d<=DATA.datainfo.synaptic_range(1));
+            if ~isempty(synapse_po)
+                if (numel(synapse_po)/size(pc_pts,1)>=DATA.datainfo.per_synapse)
+                    [d,Ind]=pdist2(pc_pts,po_pts,'euclidean','Smallest',1);
+                    synapse_pc=Ind(d<=DATA.datainfo.synaptic_range(1));
+                    [~,Centre,~,Dist] = kmeans([pc_pts(synapse_pc,:);po_pts(synapse_po,:)],1,'Distance','sqeuclidean');
                     meanptc_dist=[mean(Dist),median(Dist),max(Dist)];
                     pdistrec{pc_idx}=d;
-                    [~,pind]=min(d);
-                    loc=(pc_pts(pind(1),:)+po_pts(Ind(pind(1)),:))/2;%half way of closes site pair
+                    %[~,pind]=min(d);
+                    %loc=(pc_pts(pind(1),:)+po_pts(Ind(pind(1)),:))/2;%half way of closes site pair
+                    loc=[nan,nan,nan];
                     distrec{pc_idx}=Dist;
                 else
                     Centre=[nan,nan,nan];
@@ -1231,9 +1248,9 @@ catch exception
     errordlg(exception.message,'Calculation Error','modal');
 end
 
-function synapse_nn_site(handles)
+function analyse_synapse_nn_site(handles)
 global DATA;
-try
+htry
     % update probe menu
     fname=fieldnames(DATA.datainfo);
     fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
@@ -1245,47 +1262,80 @@ try
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
         'SelectionMode','multiple',...
+        'InitialValue',[1:1:numel(probe_list)],...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
     set(0,'DefaultUicontrolForegroundColor','w');
     if v%validated by click on OK
+        plotcount=0;
         currentprobe=handles.MENU_PROBE.Value;
-        currentcentroid=cell2mat({DATA.probe(currentprobe).cluster.centroid}');
-        n_cluster=numel(DATA.probe(currentprobe).cluster);
-        %create waitbar for user attention
-        waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
-            'CreateCancelBtn',...
-            'setappdata(gcbf,''canceling'',1)',...
-            'WindowStyle','normal',...
-            'Color',[0.2,0.2,0.2]);
-        setappdata(waitbar_handle,'canceling',0);
-        for probeidx=1:numel(s)%go through each probe including self if selected
-            othercentroid=cell2mat({DATA.probe(s(probeidx)).cluster.centroid}');
-            if currentprobe==s(probeidx)%nearest neighbour of same kind
-                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
-                    'K',2,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
-                IDX(:,1)=[];D(:,1)=[];
-            else%nearest neighbour of a different kind
-                [IDX,D] = knnsearch(othercentroid,currentcentroid,...
-                    'K',1,'IncludeTies',false,'NSMethod','kdtree','Distance','euclidean');
-            end
-            for clusterid=1:n_cluster
-                %output some progress so we know it is doing things
-                if getappdata(waitbar_handle,'canceling')
-                    fprintf('search cluster neighbour calculation cancelled\n');
-                    delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
-                    return;
+        selected_cluster=handles.TABLE_CLUSTERINFO.Data(handles.TABLE_CLUSTERINFO.UserData,1);
+        n_cluster=numel(selected_cluster);
+        currentsynapse=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid_synapse}');
+        prox_dist=2*max(DATA.datainfo.localdist);
+        for clusterid=1:n_cluster
+            fh=figure(1350+plotcount);
+            fh.Name=sprintf('Nearest Probe Site Distance to cluster%g synapse',selected_cluster(clusterid));
+            fh.Position=[0,0,900,600];fh.Color=[0.5,0.5,0.5];
+            sph=subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);hold all;
+            plot3(handles.PANEL_CLUSTER,currentsynapse(:,1),currentsynapse(:,2),currentsynapse(:,3),...
+                    'LineStyle','none','LineWidth',4,...
+                    'MarkerSize',5,'Marker','+',...
+                    'Color','w','Parent',sph);
+            for probeidx=1:numel(s)%go through each probe including self if selected
+                othersite=DATA.probe(s(probeidx)).location;
+                d_len=bsxfun(@minus,currentsynapse(clusterid,:),othersite);
+                [az,el,rad]=cart2sph(d_len(:,1),d_len(:,2),d_len(:,3));
+                proximity=rad<=prox_dist;
+                rad=rad(proximity);
+                az=rad2deg(az(proximity));el=rad2deg(el(proximity));
+                subplot(2,numel(s)+2,probeidx,'Parent',fh);
+                histogram2(az,el,-180:5:180,-90:5:90);view([0,90]);axis('equal');
+                xlabel('az (^o)','FontSize',8);
+                ylabel('el (^o)','FontSize',8);
+                title(sprintf('Probe %s',probe_list{probeidx}));
+                subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
+                histogram(rad,linspace(0,prox_dist,25));
+                xlabel('r (\mum)','FontSize',8);
+                title(sprintf('median = %f',median(rad)));
+                subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
+                if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
+                    probesite=DATA.probe(s(probeidx)).location(proximity,:);
+                    plot3(probesite(:,1),probesite(:,2),probesite(:,3),...
+                        'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
+                        'MarkerSize',3,'Parent',sph);
+                elseif s(probeidx)==currentprobe
+                    plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
+                        'EdgeColor','k',...
+                        'EdgeAlpha',0.2,...
+                        'FaceAlpha',0.5,...
+                        'Parent',sph);
+                else
+                    pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
+                    plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
+                        'EdgeColor','k',...
+                        'EdgeAlpha',0.2,...
+                        'FaceAlpha',0.5,...
+                        'Parent',sph);
                 end
-                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_id'))=IDX(clusterid);
-                DATA.probe(currentprobe).cluster(clusterid).(cat(2,'nnc',num2str(DATA.datainfo.p(s(probeidx))),'_dist'))=D(clusterid);
-                % Report current estimate in the waitbar's message field
-                done=clusterid/n_cluster;
-                waitbar(done,waitbar_handle,sprintf('%3.1f%%',100*done));
+                view(sph,3);
+                daspect(sph,[1 1 1]);
+                xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
+                %radial_dist{probeidx,clusterid}=[rad(proximity),az(proximity),el(proximity)];
             end
+            plotcount=plotcount+1;
+            sph.Color=[0.5,0.5,0.5];
+            sph.XColor=[0.7,0.7,0.7];
+            sph.YColor=[0.7,0.7,0.7];
+            sph.ZColor=[0.7,0.7,0.7];
+            sph.GridColor=[0.5,0.5,0.5];
+            sph.MinorGridColor=[0.5,0.5,0.5];
+            sph.XGrid='on';xlabel(sph,'X');
+            sph.YGrid='on';ylabel(sph,'Y');
+            sph.ZGrid='on';zlabel(sph,'Z');
         end
-        delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
-        display_clusterinfo(currentprobe,handles);
-        msgbox(sprintf('%s nearest neighbour cluster search successfully analysed.\n',DATA.datainfo.(cat(2,'probe',num2str(DATA.datainfo.p(s(probeidx))),'_name'))),'Cluster Analysis','modal');
+        %display_clusterinfo(currentprobe,handles);
+        msgbox(sprintf('%s synapse nearest neighbour site search successfully analysed.\n',probe_list{currentprobe}),'Cluster Analysis','modal');
     else
         errordlg(sprintf('search neighbour cancelled\n'));
     end
