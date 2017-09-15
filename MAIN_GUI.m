@@ -1250,7 +1250,7 @@ end
 
 function analyse_synapse_nn_site(handles)
 global DATA;
-htry
+try
     % update probe menu
     fname=fieldnames(DATA.datainfo);
     fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
