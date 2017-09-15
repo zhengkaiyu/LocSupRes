@@ -475,16 +475,16 @@ DATA.datainfo.dataname=[];
 DATA.datainfo.scaled=false;
 DATA.datainfo.probe_colours='r';
 % calculation parameters
-DATA.datainfo.localdist=0.5;
-DATA.datainfo.min_cluster_size=50;
-DATA.datainfo.synaptic_range=0.05;
+DATA.datainfo.localdist=[0.5 0.5 0.5];
+DATA.datainfo.min_cluster_size=[50 50 50];
+DATA.datainfo.synaptic_range=0.2;
 DATA.datainfo.per_synapse=0.5;
 DATA.datainfo.slice_int=[5,5,5];
 DATA.datainfo.isoval=[3,3,3];
 DATA.datainfo.accum_threshold=1;
 DATA.datainfo.psfx_threshold=0.125;
 DATA.datainfo.psfy_threshold=0.125;
-DATA.datainfo.psfz_threshold=0.525;
+DATA.datainfo.psfz_threshold=0.5;
 DATA.datainfo.snr_threshold=1.5;
 DATA.datainfo.chisq_threshold=0.05;
 DATA.datainfo.loglike_threshold=0;
@@ -920,6 +920,7 @@ try
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
         'SelectionMode','multiple',...
+        'InitialValue',1:1:numel(probe_list),...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
     set(0,'DefaultUicontrolForegroundColor','w');
@@ -988,7 +989,7 @@ try
     set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
-        'SelectionMode','multiple',...
+        'SelectionMode','single',...
         'InitialValue',1:1:numel(probe_list),...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
@@ -1278,7 +1279,7 @@ try
             fh.Name=sprintf('Nearest Probe Site Distance to cluster%g synapse',selected_cluster(clusterid));
             fh.Position=[0,0,900,600];fh.Color=[0.5,0.5,0.5];
             sph=subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);hold all;
-            plot3(handles.PANEL_CLUSTER,currentsynapse(:,1),currentsynapse(:,2),currentsynapse(:,3),...
+            plot3(handles.PANEL_CLUSTER,currentsynapse(clusterid,1),currentsynapse(clusterid,2),currentsynapse(clusterid,3),...
                     'LineStyle','none','LineWidth',4,...
                     'MarkerSize',5,'Marker','+',...
                     'Color','w','Parent',sph);
