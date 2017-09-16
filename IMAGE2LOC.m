@@ -131,7 +131,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
 % --- Executes on button press in BUTTON_SAVELOC.
 function BUTTON_SAVELOC_Callback(hObject, eventdata, handles)
 % column heading

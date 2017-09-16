@@ -22,7 +22,7 @@ function varargout = MAIN_GUI(varargin)
 
 % Edit the above text to modify the response to help MAIN_GUI
 
-% Last Modified by GUIDE v2.5 27-Feb-2017 10:42:05
+% Last Modified by GUIDE v2.5 16-Sep-2017 00:16:41
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -88,6 +88,7 @@ if pathname~=0
     handles.MENU_PROBE.String=probe_list;
     handles.MENU_PROBE.Value=1;
     handles.MENU_SORTCLUSTERTABLE.Value=1;
+    handles.MAIN_GUI.Name=cat(2,pathname,filename);
     msgbox(sprintf('%s successfully loaded\n',filename),'Open Localisation Analysis File','modal');
 end
 
@@ -220,6 +221,7 @@ if data_pathname~=0     %if files selected
         handles.MENU_PROBE.String=probe_list;
         handles.MENU_PROBE.Value=1;
         handles.MENU_SORTCLUSTERTABLE.Value=1;
+        handles.MAIN_GUI.Name=filename;
         msgbox(sprintf('%s successfully loaded\n',filename),'Load Exported Localisation File','modal');
     else
         % failed to open file
@@ -233,7 +235,8 @@ end
 % --- Executes when entered data in editable cell(s) in TABLE_DATAINFO.
 function TABLE_DATAINFO_CellEditCallback(hObject, eventdata, handles)
 global DATA;
-fname=fieldnames(DATA.datainfo);
+temp=get(hObject,'Data');
+fname=temp(:,1);
 switch fname{eventdata.Indices(1)}
     case 'probe_colours'
         DATA.datainfo.probe_colours=eventdata.NewData;
@@ -270,7 +273,6 @@ switch fname{eventdata.Indices(1)}
             probe_list{idx}=DATA.datainfo.(probefname{fidx(idx)});
         end
         handles.MENU_PROBE.String=probe_list;
-        DATA.datainfo.localdist=0.5;
     case {'accum_threshold','psfx_threshold','psfy_threshold','psfz_threshold','snr_threshold','chisq_threshold','loglike_threshold','accuracy_threshold'}
         DATA.datainfo.(fname{eventdata.Indices(1)})=str2double(eventdata.NewData);
     otherwise
@@ -516,15 +518,19 @@ function display_datainfo( output_to )
 %   specify which data data_format and the file index
 global DATA;
 f_name=fieldnames(DATA.datainfo);
-content=cell(length(f_name),2);%add two base field and minus 5 dims
+%content=cell(length(f_name),2);%add two base field and minus 5 dims
 f_idx=0;o_idx=1;
 while f_idx<length(f_name)
     f_idx=f_idx+1;
     switch f_name{f_idx}
-        %case {'t','X','Y','Z','T'}
         %not to display
-        case {''}
-            
+        case {'p','X','Y','Z','T',...
+              'header1','header2','header3','header4','header5','header6','header7','header8','header9','header10',...
+              'header11','header12','header13','header14','header15','header16','header17','header18','header19','header20',...
+              'header21','header22','header23','header24','header25','header26','header27','header28','header29','header30',...
+              'header31','header32','header33','header34','header35','header36','header37','header38','header39','header40',...
+              'imageidcol','cyclecol','zstepcol','framecol','accumcol','probecol','psfpccol','psfxcol','psfycol','psfzcol',...
+              'xcol','ycol','zcol','bg11col','bg12col','bg21col','bg22col','chisqcol','loglhcol','accuracycol','validcol'}
         otherwise
             f_val=DATA.datainfo.(f_name{f_idx});%field_value
             if isnumeric(f_val)
@@ -584,7 +590,6 @@ function showlocation(handles)
 global DATA;
 % get probe index
 probeidx=handles.MENU_PROBE.Value;
-%probe=DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx);
 % plot
 plot3(handles.PANEL_SCATTER3D,DATA.probe(probeidx).location(:,1),DATA.probe(probeidx).location(:,2),DATA.probe(probeidx).location(:,3),...
     'LineStyle','none','Marker','.','Color',DATA.datainfo.probe_colours(probeidx),...
@@ -599,7 +604,6 @@ function showimage(handles)
 global DATA;
 % get probe index
 probeidx=handles.MENU_PROBE.Value;
-%probe=find(DATA.dataval(:,DATA.datainfo.probecol)==DATA.datainfo.p(probeidx));
 X_scale=DATA.datainfo.X;
 X_res=DATA.datainfo.dX;
 Y_scale=DATA.datainfo.Y;
@@ -615,7 +619,6 @@ for zslice=1:DATA.datainfo.data_dim(4)
         for idx=1:numel(currentzidx)
             if binx(idx)>0
                 %scaling using column 15
-                %val(binx(idx),biny(idx),zslice)=temp(binx(idx),biny(idx),zslice)+DATA.dataval(probe(currentzidx(idx)),16);
             end
         end
     end
@@ -989,7 +992,7 @@ try
     set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
-        'SelectionMode','single',...
+        'SelectionMode','multiple',...
         'InitialValue',1:1:numel(probe_list),...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
@@ -1013,12 +1016,13 @@ try
                 rad=rad(proximity);
                 az=rad2deg(az(proximity));el=rad2deg(el(proximity));
                 subplot(2,numel(s),probeidx,'Parent',fh);
-                histogram2(az,el,-180:5:180,-90:5:90);view([0,90]);axis('equal');
+                histogram2(az,el,-180:5:180,-90:5:90,'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
+                view([0,90]);axis('equal');
                 xlabel('az (^o)','FontSize',8);
                 ylabel('el (^o)','FontSize',8);
                 title(sprintf('Probe %s',probe_list{probeidx}));
                 subplot(2,numel(s),probeidx+numel(s),'Parent',fh);
-                histogram(rad,linspace(0,prox_dist,25));
+                histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
                 title(sprintf('median = %f',median(rad)));
                 %radial_dist{probeidx,clusterid}=[rad(proximity),az(proximity),el(proximity)];
@@ -1174,7 +1178,8 @@ try
     set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
-        'SelectionMode','multiple',...
+        'SelectionMode','single',...
+        'InitialValue',numel(probe_list),...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
     set(0,'DefaultUicontrolForegroundColor','w');
@@ -1291,14 +1296,15 @@ try
                 rad=rad(proximity);
                 az=rad2deg(az(proximity));el=rad2deg(el(proximity));
                 subplot(2,numel(s)+2,probeidx,'Parent',fh);
-                histogram2(az,el,-180:5:180,-90:5:90);view([0,90]);axis('equal');
+                histogram2(az,el,-180:5:180,-90:5:90,'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
+                view([0,90]);axis('equal');
                 xlabel('az (^o)','FontSize',8);
                 ylabel('el (^o)','FontSize',8);
                 title(sprintf('Probe %s',probe_list{probeidx}));
                 subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
-                histogram(rad,linspace(0,prox_dist,25));
+                histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
-                title(sprintf('median = %f',median(rad)));
+                title(sprintf('min = %4.3f\nmedian = %4.3f\nmean = %4.3f',min(rad),mean(rad),median(rad)));
                 subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
                 if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
                     probesite=DATA.probe(s(probeidx)).location(proximity,:);
@@ -1306,23 +1312,24 @@ try
                         'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
                         'MarkerSize',3,'Parent',sph);
                 elseif s(probeidx)==currentprobe
-                    plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
+                    plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,...
+                        'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
                         'EdgeColor','k',...
                         'EdgeAlpha',0.2,...
-                        'FaceAlpha',0.5,...
+                        'FaceAlpha',0.4,...
                         'Parent',sph);
                 else
                     pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
-                    plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
+                    plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,...
+                        'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
                         'EdgeColor','k',...
                         'EdgeAlpha',0.2,...
-                        'FaceAlpha',0.5,...
+                        'FaceAlpha',0.4,...
                         'Parent',sph);
                 end
                 view(sph,3);
                 daspect(sph,[1 1 1]);
                 xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
-                %radial_dist{probeidx,clusterid}=[rad(proximity),az(proximity),el(proximity)];
             end
             plotcount=plotcount+1;
             sph.Color=[0.5,0.5,0.5];
@@ -1334,8 +1341,8 @@ try
             sph.XGrid='on';xlabel(sph,'X');
             sph.YGrid='on';ylabel(sph,'Y');
             sph.ZGrid='on';zlabel(sph,'Z');
+            axis(sph,'equal');
         end
-        %display_clusterinfo(currentprobe,handles);
         msgbox(sprintf('%s synapse nearest neighbour site search successfully analysed.\n',probe_list{currentprobe}),'Cluster Analysis','modal');
     else
         errordlg(sprintf('search neighbour cancelled\n'));
