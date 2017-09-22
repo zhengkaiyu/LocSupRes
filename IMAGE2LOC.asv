@@ -242,7 +242,7 @@ try
         handles.SLIDER_IMGMIN.SliderStep=[1/handles.SLIDER_IMGMIN.Max,10/handles.SLIDER_IMGMIN.Max];
         SLIDER_IMGMIN_Callback(handles.SLIDER_IMGMIN,[],handles);
         handles.SLIDER_IMGMAX.Max=2^bitdim-1;
-        handles.SLIDER_IMGMAX.SliderStep=[1/handles.SLIDER_IMGMAX.Max,10/handles.SLIDER_IMGMAX.Max];
+        handles.SLIDER_IMGMAX.SliderStep=[1/handles.SLIDER_IMGMAX.Max,10/handles.SLIDER_IMGMAX.Max];        
         SLIDER_IMGMAX_Callback(handles.SLIDER_IMGMAX,[],handles);
         handles.FIGURE_IMG2LOC.Name=filename;
         msgbox('File Loaded');
@@ -265,7 +265,7 @@ hObject.Value=val;
 
 function VAL_THRESHOLD_Callback(hObject, ~, handles)
 val=str2double(hObject.String);
-val=min(max(val,0),handles.SLIDER_IMGMAX.Max);
+val=min(max(val,0),handles.SLIDER_MAX.Max);
 hObject.String=val;
 hObject.Value=val;
 updateimage(handles);
@@ -375,7 +375,6 @@ try
     zstop=numel(rawdata.z)-znn;
     local=zeros(loopsize,3);
     intensity=zeros(loopsize,1);
-    chisq=zeros(loopsize,1);
     [i,j,k]=ind2sub(subimgsize,1:prod(subimgsize));
     i=i(:);j=j(:);k=k(:);
     localidx=1;
@@ -405,12 +404,12 @@ try
         end
     end
     % remove invalid points
-    invalid=(intensity==0);
-    local(invalid,:)=[];
-    intensity(invalid)=[];
-    chisq(invalid)=[];
+    valid=intensity==0;
+    local(intensity==0,:)=[];
+    intensity()=[];
+    chisq(intensity==0
     %x,y,z,photon-count
-    localdata.val{cidx,fidx}=[local(:,[2,1,3]),intensity,chisq];
+    localdata.val{cidx,fidx}=[local(:,[2,1,3]),intensity];
     fprintf(1,'finished\n');
     updateimage(handles);
     msgbox(sprintf('Found %g localisation for Channel%g Frame%g.',numel(intensity),cidx,fidx),'Localisation Finished');
@@ -428,14 +427,10 @@ msgbox(sprintf('Localisation for Channel%g Frame%g cleared.',cidx,fidx),'Localis
 
 function BUTTON_EXPORTLOC_Callback(~, ~, handles)
 global localdata;
-[pathname,~,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
-if isempty(pathname)
-    pathname='./';
-end
 % ask for one file to open
 [filename,pathname,~] = uiputfile({'*.csv','Bruker export ascii file (*.csv)';...
     '*.*','All Files (*.*)'},...
-    'Select Localisation ASCII File',pathname);
+    'Select Localisation ASCII File','./');
 if ischar(filename)
     filename=cat(2,pathname,filename);
     threshold=handles.VAL_THRESHOLD.Value;
@@ -460,7 +455,7 @@ if ischar(filename)
                 tabval(startidx:endidx,strcmp(localdata.colname,'background12'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
                 tabval(startidx:endidx,strcmp(localdata.colname,'background21'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
                 tabval(startidx:endidx,strcmp(localdata.colname,'background22'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
-                tabval(startidx:endidx,strcmp(localdata.colname,'chisq'))=localdata.val{cidx,fidx}(:,5);
+                tabval(startidx:endidx,strcmp(localdata.colname,'chisq'))=ones(size(localdata.val{cidx,fidx},1),1)*0.01;
                 tabval(startidx:endidx,strcmp(localdata.colname,'valid'))=ones(size(localdata.val{cidx,fidx},1),1);
                 tabval(startidx:endidx,strcmp(localdata.colname,'accuracy'))=ones(size(localdata.val{cidx,fidx},1),1)*15;
                 startidx=endidx+1;
@@ -499,7 +494,7 @@ fidx=handles.SLIDER_F.Value;
 threshold=handles.VAL_THRESHOLD.Value;
 val=squeeze(rawdata.val(cidx,:,:,zidx,fidx));
 val(val<threshold)=nan;
-imshow(val,[handles.SLIDER_IMGMIN.Value,handles.SLIDER_IMGMAX.Value],'Parent',handles.PANEL_IMAGE,'XData',rawdata.x,'YData',rawdata.y);
+imshow(val,'Parent',handles.PANEL_IMAGE,'XData',rawdata.x,'YData',rawdata.y);
 if ~isempty(localdata.val{cidx,fidx})
     coloridx={'y','r','b','g'};
     if isempty(handles.PANEL_LOCALISATION.Children)

@@ -525,12 +525,12 @@ while f_idx<length(f_name)
     switch f_name{f_idx}
         %not to display
         case {'p','X','Y','Z','T',...
-              'header1','header2','header3','header4','header5','header6','header7','header8','header9','header10',...
-              'header11','header12','header13','header14','header15','header16','header17','header18','header19','header20',...
-              'header21','header22','header23','header24','header25','header26','header27','header28','header29','header30',...
-              'header31','header32','header33','header34','header35','header36','header37','header38','header39','header40',...
-              'imageidcol','cyclecol','zstepcol','framecol','accumcol','probecol','psfpccol','psfxcol','psfycol','psfzcol',...
-              'xcol','ycol','zcol','bg11col','bg12col','bg21col','bg22col','chisqcol','loglhcol','accuracycol','validcol'}
+                'header1','header2','header3','header4','header5','header6','header7','header8','header9','header10',...
+                'header11','header12','header13','header14','header15','header16','header17','header18','header19','header20',...
+                'header21','header22','header23','header24','header25','header26','header27','header28','header29','header30',...
+                'header31','header32','header33','header34','header35','header36','header37','header38','header39','header40',...
+                'imageidcol','cyclecol','zstepcol','framecol','accumcol','probecol','psfpccol','psfxcol','psfycol','psfzcol',...
+                'xcol','ycol','zcol','bg11col','bg12col','bg21col','bg22col','chisqcol','loglhcol','accuracycol','validcol'}
         otherwise
             f_val=DATA.datainfo.(f_name{f_idx});%field_value
             if isnumeric(f_val)
@@ -1004,6 +1004,7 @@ try
         currentcentroid=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid}');
         n_cluster=numel(selected_cluster);
         prox_dist=2*max(DATA.datainfo.localdist);
+        probeidx=1;
         for clusterid=1:n_cluster
             fh=figure(135+plotcount);
             fh.Name=sprintf('Nearest Probe Site Distance to probe %s cluster%g Centroid',probe_list{currentprobe},selected_cluster(clusterid));
@@ -1077,17 +1078,17 @@ try
                 if probeidx~=pidx
                     clusterid=pc_cluster.(cat(2,'nnc',num2str(pidx-1),'_id'));
                     po_cluster=DATA.probe(pidx).cluster(clusterid);
-                    sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx,'Parent',fh);
+                    sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*DATA.datainfo.n_probe*2+pidx,'Parent',fh);
                     hist(sh1,po_cluster.Dist,20);
                     sh1.YTickLabel=[];
                     pairedDist{pidx,ridx} = pdist2(DATA.probe(pidx).location(po_cluster.index,:),DATA.probe(probeidx).location(pc_cluster.index,:),'euclidean','Smallest',1); %#ok<AGROW>
-                    sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx+3,'Parent',fh);
+                    sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*DATA.datainfo.n_probe*2+pidx+DATA.datainfo.n_probe,'Parent',fh);
                     hist(sh2,pairedDist{pidx,ridx},20);
                     sh2.YTickLabel=[];
                     ylabel(sh1,sprintf('cluster%g',clusterid),'FontSize',8);
                     if ridx==n_site
                         nnc_dist=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))];
-                        centroid_dist{pidx}=[nnc_dist(temp(selectedrow,1))]'; %#ok<AGROW>
+                        centroid_dist{pidx}=nnc_dist(temp(selectedrow,1))'; %#ok<AGROW>
                         xlabel(sh1,'r (\mum)','FontSize',8);
                         xlabel(sh2,'r (\mum)','FontSize',8);
                     end
@@ -1096,21 +1097,21 @@ try
                         title(sh2,sprintf('d_{shortest} to nn %s sites',eval(cat(2,'DATA.datainfo.probe',num2str(pidx-1),'_name'))),'FontSize',8);
                     end
                 else
-                    sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx,'Parent',fh);
+                    sh1=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*DATA.datainfo.n_probe*2+pidx,'Parent',fh);
                     hist(sh1,pc_cluster.Dist,20);
                     sh1.YTickLabel=[];
                     clusterid=pc_cluster.(cat(2,'nnc',num2str(pidx-1),'_id'));
                     po_cluster=DATA.probe(pidx).cluster(clusterid);
                     % only find distance to the next neighbour of the same kind
                     pairedDist{pidx,ridx} = pdist2(DATA.probe(pidx).location(po_cluster.index,:),DATA.probe(probeidx).location(pc_cluster.index,:),'euclidean','Smallest',1); %#ok<AGROW>
-                    sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*6+pidx+3,'Parent',fh);
+                    sh2=subplot(n_site,DATA.datainfo.n_probe*2,(ridx-1)*DATA.datainfo.n_probe*2+pidx+DATA.datainfo.n_probe,'Parent',fh);
                     hist(sh2,pairedDist{pidx,ridx},20);
                     sh2.YTickLabel=[];
                     ylabel(sh1,sprintf('cluster%g',pc_idx),'FontSize',8);
                     if ridx==n_site
                         %centroid_dist{pidx}=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))]'; %#ok<AGROW>
                         nnc_dist=[DATA.probe(probeidx).cluster.(cat(2,'nnc',num2str(pidx-1),'_dist'))];
-                        centroid_dist{pidx}=[nnc_dist(temp(selectedrow,1))]'; %#ok<AGROW>
+                        centroid_dist{pidx}=nnc_dist(temp(selectedrow,1))'; %#ok<AGROW>
                         xlabel(sh1,'r (\mum)','FontSize',8);
                         xlabel(sh2,'r (\mum)','FontSize',8);
                     end
@@ -1133,18 +1134,20 @@ try
     fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
     plotcount=1;
     for idx=1:DATA.datainfo.n_probe
-        temp=cell2mat(pairedDist(idx,:))';
-        if ~isempty(temp)
-            [N,edges] = histcounts(temp,max(round(numel(temp)/20),10));
-            sh=subplot(2,1,1,'Parent',fh);
-            line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
-            probe_list{plotcount}=DATA.datainfo.(fname{fidx(idx)}); %#ok<AGROW>
-            plotcount=plotcount+1;
-        end
-        if ~isempty(centroid_dist{idx})
-            [N,edges] = histcounts(centroid_dist{idx},max(round(numel(centroid_dist{idx})/20),5));
-            sh=subplot(2,1,2,'Parent',fh);
-            line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
+        if idx<=size(pairedDist,1)
+            temp=cell2mat(pairedDist(idx,:))';
+            if ~isempty(temp)
+                [N,edges] = histcounts(temp,max(round(numel(temp)/20),10));
+                sh=subplot(2,1,1,'Parent',fh);
+                line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
+                probe_list{plotcount}=DATA.datainfo.(fname{fidx(idx)}); %#ok<AGROW>
+                plotcount=plotcount+1;
+            end
+            if ~isempty(centroid_dist{idx})
+                [N,edges] = histcounts(centroid_dist{idx},max(round(numel(centroid_dist{idx})/20),5));
+                sh=subplot(2,1,2,'Parent',fh);
+                line(sh,edges(1:end-1),N,'Marker','o','MarkerSize',3,'LineStyle','-','LineWidth',1,'Color',DATA.datainfo.probe_colours(idx),'MarkerFaceColor',DATA.datainfo.probe_colours(idx));
+            end
         end
     end
     sh=subplot(2,1,1,'Parent',fh);
@@ -1193,9 +1196,9 @@ try
             'Color',[0.2,0.2,0.2]);
         setappdata(waitbar_handle,'canceling',0);
         for pc_idx=1:n_site
-            pc_cluster=DATA.probe(probeidx).cluster(pc_idx);
             po_idx=DATA.probe(probeidx).cluster(pc_idx).(cat(2,'nnc',num2str(s-1),'_id'));
-            po_cluster=DATA.probe(s).cluster(po_idx);
+            %pc_cluster=DATA.probe(probeidx).cluster(pc_idx);
+            %po_cluster=DATA.probe(s).cluster(po_idx);
             %pc_pts=pc_cluster.shape.Points;
             %po_pts=po_cluster.shape.Points;
             pc_pts=DATA.probe(probeidx).location(DATA.probe(probeidx).cluster(pc_idx).index,:);
@@ -1268,7 +1271,7 @@ try
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
         'SelectionMode','multiple',...
-        'InitialValue',[1:1:numel(probe_list)],...
+        'InitialValue',1:1:numel(probe_list),...
         'ListString',probe_list);
     set(0,'DefaultUicontrolBackgroundColor','k');
     set(0,'DefaultUicontrolForegroundColor','w');
@@ -1285,9 +1288,9 @@ try
             fh.Position=[0,0,900,600];fh.Color=[0.5,0.5,0.5];
             sph=subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);hold all;
             plot3(handles.PANEL_CLUSTER,currentsynapse(clusterid,1),currentsynapse(clusterid,2),currentsynapse(clusterid,3),...
-                    'LineStyle','none','LineWidth',4,...
-                    'MarkerSize',5,'Marker','+',...
-                    'Color','w','Parent',sph);
+                'LineStyle','none','LineWidth',4,...
+                'MarkerSize',5,'Marker','+',...
+                'Color','w','Parent',sph);
             for probeidx=1:numel(s)%go through each probe including self if selected
                 othersite=DATA.probe(s(probeidx)).location;
                 d_len=bsxfun(@minus,currentsynapse(clusterid,:),othersite);
