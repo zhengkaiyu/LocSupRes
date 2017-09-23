@@ -361,7 +361,7 @@ hObject.SliderStep=[1/hObject.Max,10/hObject.Max];
 handles.VAL_MIN.String=hObject.Value;
 
 %-------------------------------------------------------------------------
-function BUTTON_LOCALISE_Callback(~, ~, handles)
+function BUTTON_LOCALISE_Callback(hObject, ~, handles)
 global rawdata localdata;
 try
     nn=handles.VAL_NNPIXEL.Value;
@@ -380,6 +380,7 @@ try
     i=i(:);j=j(:);k=k(:);
     localidx=1;
     ds=[rawdata.dx,rawdata.dy,rawdata.dz];
+    hObject.String='Calculating';pause(0.1);
     fprintf(1,'start...\t');
     for zpix=zstart:1:zstop
         fprintf(1,'step %g/%g...\t',zpix,zstop);
@@ -412,6 +413,8 @@ try
     %x,y,z,photon-count
     localdata.val{cidx,fidx}=[local(:,[2,1,3]),intensity,chisq];
     fprintf(1,'finished\n');
+    beep;beep;
+    hObject.String='Localise';
     updateimage(handles);
     msgbox(sprintf('Found %g localisation for Channel%g Frame%g.',numel(intensity),cidx,fidx),'Localisation Finished');
 catch exception
@@ -470,7 +473,7 @@ if ischar(filename)
     %csvwrite(filename,tabval);
     fileID = fopen(filename,'w');
     headerfmt=[repmat('%s,',1,numel(localdata.colname)-1),'%s\n'];
-    filefmt=[repmat('%3.3g,',1,numel(localdata.colname)-1),'%3.3g\n'];
+    filefmt=[repmat('%0.6g,',1,numel(localdata.colname)-1),'%0.6g\n'];
     fprintf(fileID,headerfmt,localdata.colname{:});
     fprintf(fileID,filefmt,tabval');
     fclose(fileID);
@@ -500,6 +503,7 @@ threshold=handles.VAL_THRESHOLD.Value;
 val=squeeze(rawdata.val(cidx,:,:,zidx,fidx));
 val(val<threshold)=nan;
 imshow(val,[handles.SLIDER_IMGMIN.Value,handles.SLIDER_IMGMAX.Value],'Parent',handles.PANEL_IMAGE,'XData',rawdata.x,'YData',rawdata.y);
+axis(handles.PANEL_IMAGE,'on');
 if ~isempty(localdata.val{cidx,fidx})
     coloridx={'y','r','b','g'};
     if isempty(handles.PANEL_LOCALISATION.Children)

@@ -67,11 +67,15 @@ varargout{1} = handles.output;
 % --- Executes on button press in BUTTON_OPEN.
 function BUTTON_OPEN_Callback(~, ~, handles) %#ok<*DEFNU>
 global DATA;
+[pathname,~,~]=fileparts(handles.MAIN_GUI.Name);
+if isempty(pathname)
+    pathname='./';
+end
 % ask for one file to open
 [filename,pathname,~] = uigetfile({'*.laf','FIMAS file (*.laf)';...
     '*.*','All Files (*.*)'},...
     'Select Saved Localisation Analysis File',...
-    'MultiSelect','off','./');
+    'MultiSelect','off',pathname);
 % if files selected
 if pathname~=0
     temp = load(cat(2,pathname,filename),'-mat'); % load file
@@ -93,15 +97,20 @@ if pathname~=0
 end
 
 % --- Executes on button press in BUTTON_SAVE.
-function BUTTON_SAVE_Callback(~, ~, ~)
+function BUTTON_SAVE_Callback(~, ~, handles)
 global DATA; %#ok<NUSED>
+[pathname,~,~]=fileparts(handles.MAIN_GUI.Name);
+if isempty(pathname)
+    pathname='./';
+end
 [filename,pathname,~]=uiputfile({'*.laf','localisation analysis file (*.laf)';...
     '*.*','All Files (*.*)'},...
-    'Select Saved Localisation Analysis File','./');
+    'Select Saved Localisation Analysis File',pathname);
 if pathname~=0
     filename=cat(2,pathname,filename);
     version='7.3';
     save(filename,'DATA','-mat',cat(2,'-v',version));
+    handles.MAIN_GUI.Name=filename;
     msgbox(sprintf('%s saved in ver %s\n',filename,version),'Save File','modal');
 else
     % user interuption
@@ -111,10 +120,14 @@ end
 % --- Executes on button press in BUTTON_LOADRAW.
 function BUTTON_LOADRAW_Callback(~, ~, handles)
 global DATA DEFAULT_COLOUR;
+[pathname,~,~]=fileparts(handles.MAIN_GUI.Name);
+if isempty(pathname)
+    pathname='./';
+end
 % select file from storage
 [filename,data_pathname,~]=uigetfile({'*.*','All Files (*.*)';...
     '*.csv','Bruker exported localisation data (*.csv)'},...
-    'Select Raw Data File','MultiSelect','off','./');
+    'Select Raw Data File','MultiSelect','off',pathname);
 if data_pathname~=0     %if files selected
     filename=cat(2,data_pathname,filename);
     % attempt to open file
@@ -447,7 +460,7 @@ cd(funcpath(1:end-9));
 path=cat(2,pwd,filesep);
 % add all subdirectory for libraries
 addpath(genpath(path));
-DEFAULT_COLOUR='brgkmcy';
+DEFAULT_COLOUR='brgymcwk';
 % set up global variable DATA
 DATA.datainfo.n_image=[];
 DATA.datainfo.n_image=[];
