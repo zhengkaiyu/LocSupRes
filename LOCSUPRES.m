@@ -627,7 +627,7 @@ val=zeros(DATA.datainfo.data_dim(2),DATA.datainfo.data_dim(3),DATA.datainfo.data
 for zslice=1:DATA.datainfo.data_dim(4)
     % go through each z slices
     currentzidx=find(DATA.probe(probeidx).location(:,3)>(Z_scale(zslice)-Z_res/2)&DATA.probe(probeidx).location(:,3)<=(Z_scale(zslice)+Z_res/2));
-    [temp,~,~,binx,biny]=histcounts2(DATA.probe(probeidx).location(currentzidx,1),DATA.probe(probeidx).location(currentzidx,2),[X_scale-X_res/2;X_scale(end)+X_res/2],[Y_scale-Y_res/2;Y_scale(end)+Y_res/2]);
+    [temp,~,~,binx,~]=histcounts2(DATA.probe(probeidx).location(currentzidx,1),DATA.probe(probeidx).location(currentzidx,2),[X_scale-X_res/2;X_scale(end)+X_res/2],[Y_scale-Y_res/2;Y_scale(end)+Y_res/2]);
     if DATA.datainfo.scaled
         for idx=1:numel(currentzidx)
             if binx(idx)>0
@@ -1201,6 +1201,8 @@ try
     set(0,'DefaultUicontrolForegroundColor','w');
     if v%validated by click on OK
         n_site=numel(DATA.probe(probeidx).cluster);
+        pdistrec=cell(n_size);
+        distrec=cell(n_size);
         %create waitbar for user attention
         waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
             'CreateCancelBtn',...
