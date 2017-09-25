@@ -1201,8 +1201,8 @@ try
     set(0,'DefaultUicontrolForegroundColor','w');
     if v%validated by click on OK
         n_site=numel(DATA.probe(probeidx).cluster);
-        pdistrec=cell(n_size);
-        distrec=cell(n_size);
+        pdistrec=cell(n_site,1);
+        distrec=cell(n_site,1);
         %create waitbar for user attention
         waitbar_handle = waitbar(0,'Please wait...','Progress Bar','Calculating...',...
             'CreateCancelBtn',...
@@ -1226,11 +1226,11 @@ try
                     synapse_pc=Ind(d<=DATA.datainfo.synaptic_range(1));
                     [~,Centre,~,Dist] = kmeans([pc_pts(synapse_pc,:);po_pts(synapse_po,:)],1,'Distance','sqeuclidean');
                     meanptc_dist=[mean(Dist),median(Dist),max(Dist)];
-                    pdistrec{pc_idx}=d;
+                    pdistrec{pc_idx,1}=d;
                     %[~,pind]=min(d);
                     %loc=(pc_pts(pind(1),:)+po_pts(Ind(pind(1)),:))/2;%half way of closes site pair
                     loc=[nan,nan,nan];
-                    distrec{pc_idx}=Dist;
+                    distrec{pc_idx,1}=Dist';
                 else
                     Centre=[nan,nan,nan];
                     loc=[nan,nan,nan];
@@ -1252,12 +1252,12 @@ try
         fh=figure(probeidx);
         fh.Name=sprintf('%s synapse search against %s',probe_list{probeidx},probe_list{s});
         fh.Position=[0,0,900,600];
-        temp=cell2mat(pdistrec);
+        temp=[pdistrec{:}];
         subplot(2,1,1,'Parent',fh);
         histogram(temp(:),50);
         xlabel('r (\mum)','FontSize',8);
         title(sprintf('%s to %s site synapse pairwise distances',probe_list{probeidx},probe_list{s}));
-        temp=cell2mat(distrec');
+        temp=[distrec{:}]';
         subplot(2,1,2,'Parent',fh);
         histogram(temp(:),50);
         xlabel('r (\mum)','FontSize',8);
