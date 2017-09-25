@@ -72,7 +72,7 @@ if isempty(pathname)
     pathname='./';
 end
 % ask for one file to open
-[filename,pathname,~] = uigetfile({'*.laf','FIMAS file (*.laf)';...
+[filename,pathname,~] = uigetfile({'*.laf','Localisation analysis file (*.laf)';...
     '*.*','All Files (*.*)'},...
     'Select Saved Localisation Analysis File',...
     'MultiSelect','off',pathname);
@@ -103,7 +103,7 @@ global DATA; %#ok<NUSED>
 if isempty(pathname)
     pathname='./';
 end
-[filename,pathname,~]=uiputfile({'*.laf','localisation analysis file (*.laf)';...
+[filename,pathname,~]=uiputfile({'*.laf','Localisation analysis file (*.laf)';...
     '*.*','All Files (*.*)'},...
     'Select Saved Localisation Analysis File',pathname);
 if pathname~=0
@@ -910,6 +910,9 @@ try
     delete(waitbar_handle);       % DELETE the waitbar; don't try to CLOSE it.
     view(handles.PANEL_CLUSTER,2);
     daspect(handles.PANEL_CLUSTER,[1 1 1]);
+    % sort by centroid
+    [~,ind]=sortrows(cell2mat({DATA.probe(pidx).cluster.centroid}'),[1,2,3]);
+    DATA.probe(pidx).cluster=DATA.probe(pidx).cluster(ind);
     % update cluster info table
     display_clusterinfo(pidx,handles);
     msgbox(sprintf('%s clustering successfully analysed.\nIt has %g clusters.\nUse localdist and min_cluster_size are variable parameters.',DATA.datainfo.(cat(2,'probe',num2str(DATA.datainfo.p(pidx)),'_name')),n_cluster),'Cluster Analysis','modal');
@@ -1291,6 +1294,10 @@ try
     set(0,'DefaultUicontrolBackgroundColor','k');
     set(0,'DefaultUicontrolForegroundColor','w');
     if v%validated by click on OK
+        [pathname,~,~]=fileparts(handles.LOCSUPRES.Name);
+                if isempty(pathname)
+                    pathname='./';
+                end
         plotcount=0;
         currentprobe=handles.MENU_PROBE.Value;
         selected_cluster=handles.TABLE_CLUSTERINFO.Data(handles.TABLE_CLUSTERINFO.UserData,1);
@@ -1313,6 +1320,16 @@ try
                 proximity=rad<=prox_dist;
                 rad=rad(proximity);
                 az=rad2deg(az(proximity));el=rad2deg(el(proximity));
+                %calculate volume information
+                temp=alphaShape(d_len(proximity,1:3),1,'HoleThreshold',0.2);
+                pc=criticalAlpha(temp,'one-region');
+                if isempty(pc)
+                    vf=0;surfarea=0;
+                else
+                    temp.Alpha=pc;
+                    vf=volume(temp)/(4/3*pi*prox_dist^3);
+                    surfarea=surfaceArea(temp);
+                end                
                 subplot(2,numel(s)+2,probeidx,'Parent',fh);
                 histogram2(az,el,-180:5:180,-90:5:90,'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 view([0,90]);axis('equal');
@@ -1322,7 +1339,13 @@ try
                 subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
                 histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
-                title(sprintf('min = %4.3f\nmedian = %4.3f\nmean = %4.3f',min(rad),mean(rad),median(rad)));
+                title(sprintf('min = %4.3f\nmedian = %4.3f\nmean = %4.3f\nV_f = %4.3f\nArea = %4.3f',min(rad),mean(rad),median(rad),vf,surfarea));
+                % export raw angle and distance data
+                filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
+                fid=fopen(filename,'w');
+                fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
+                fclose(fid);
+                
                 subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
                 if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
                     probesite=DATA.probe(s(probeidx)).location(proximity,:);
@@ -1361,7 +1384,7 @@ try
             sph.ZGrid='on';zlabel(sph,'Z');
             axis(sph,'equal');
         end
-        msgbox(sprintf('%s synapse nearest neighbour site search successfully analysed.\n',probe_list{currentprobe}),'Cluster Analysis','modal');
+        msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');
     else
         errordlg(sprintf('search neighbour cancelled\n'));
     end

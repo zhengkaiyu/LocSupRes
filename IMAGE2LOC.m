@@ -22,7 +22,7 @@ function varargout = IMAGE2LOC(varargin)
 
 % Edit the above text to modify the response to help IMAGE2LOC
 
-% Last Modified by GUIDE v2.5 22-Sep-2017 15:49:50
+% Last Modified by GUIDE v2.5 25-Sep-2017 16:03:23
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -256,6 +256,109 @@ catch exception
     errordlg(exception.message,'Calculation Error','modal');
 end
 
+% --- Executes on button press in BUTTON_OPEN.
+function BUTTON_OPEN_Callback(~, ~, handles)
+global rawdata localdata;
+[pathname,~,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
+if isempty(pathname)
+    pathname='./';
+end
+% ask for one file to open
+[filename,pathname,~] = uigetfile({'*.i2l','image2localisation file  (*.i2l)';...
+    '*.*','All Files (*.*)'},...
+    'Select Saved Localisation Analysis File',...
+    'MultiSelect','off',pathname);
+% if files selected
+if pathname~=0
+    temp = load(cat(2,pathname,filename),'-mat'); % load file
+    rawdata=temp.rawdata;
+    localdata=temp.localdata;
+    info=temp.info;
+    handles.VAL_IMGLENGTH.String=info.imglen;
+    handles.VAL_IMGWIDTH.String=info.imgwidth;
+    handles.VAL_IMGBITDEPTH.String=info.bitdim;
+    handles.VAL_IMGNUM.String=info.nimg;
+    handles.VAL_IMGCHANNEL.String=info.nch;
+    handles.VAL_IMGSLICE.String=info.nslice;
+    handles.VAL_IMGFRAME.String=info.nframe;
+    handles.VAL_IMGMIN.String=info.minval;
+    handles.VAL_IMGMAX.String=info.maxval;
+    handles.VAL_IMGXRES.String=info.xres;
+    handles.VAL_IMGYRES.String=info.yres;
+    handles.VAL_IMGSPACING.String=info.spacing;
+    handles.VAL_NNPIXEL.String=info.nn;handles.VAL_NNPIXEL.Value=str2double(handles.VAL_NNPIXEL.String);
+    handles.VAL_ZNNPIXEL.String=info.znn;handles.VAL_ZNNPIXEL.Value=str2double(handles.VAL_ZNNPIXEL.String);
+    handles.VAL_THRESHOLD.String=info.threshold;handles.VAL_THRESHOLD.Value=str2double(handles.VAL_THRESHOLD.String);
+    handles.VAL_RESX.String=info.resolution{1};handles.VAL_RESX.Value=str2double(handles.VAL_RESX.String);
+    handles.VAL_RESY.String=info.resolution{2};handles.VAL_RESY.Value=str2double(handles.VAL_RESY.String);
+    handles.VAL_RESZ.String=info.resolution{3};handles.VAL_RESZ.Value=str2double(handles.VAL_RESZ.String);
+    handles.SLIDER_C.Visible='on';handles.VAL_C.Visible='on';
+    handles.SLIDER_C.Max=str2double(info.nch);
+    handles.SLIDER_C.Value=1;
+    handles.VAL_C.Value=handles.SLIDER_C.Value;
+    handles.VAL_C.String=handles.SLIDER_C.Value;
+    handles.SLIDER_C.SliderStep=[1/(str2double(info.nch)-1),1];
+    handles.SLIDER_Z.Visible='on';handles.VAL_Z.Visible='on';
+    handles.SLIDER_Z.Max=str2double(info.nslice);
+    handles.SLIDER_Z.Value=1;
+    handles.VAL_Z.Value=handles.SLIDER_Z.Value;
+    handles.VAL_Z.String=handles.SLIDER_Z.Value;
+    handles.SLIDER_Z.SliderStep=[1/(str2double(info.nslice)-1),1];
+    handles.SLIDER_F.Visible='on';handles.VAL_F.Visible='on';
+    handles.SLIDER_F.Max=str2double(info.nframe);
+    handles.SLIDER_F.Value=1;
+    handles.VAL_F.Value=handles.SLIDER_F.Value;
+    handles.VAL_F.String=handles.SLIDER_F.Value;
+    handles.SLIDER_F.SliderStep=[1/(str2double(info.nframe)-1),1];
+    imagesc(handles.PANEL_IMAGE,rawdata.x,rawdata.y,squeeze(rawdata.val(1,:,:,1,1)));
+    colormap(handles.PANEL_IMAGE,'gray');
+    handles.SLIDER_IMGMIN.Max=2^str2double(info.bitdim)-1;
+    handles.SLIDER_IMGMIN.SliderStep=[1/handles.SLIDER_IMGMIN.Max,10/handles.SLIDER_IMGMIN.Max];
+    SLIDER_IMGMIN_Callback(handles.SLIDER_IMGMIN,[],handles);
+    handles.SLIDER_IMGMAX.Max=2^str2double(info.bitdim)-1;
+    handles.SLIDER_IMGMAX.SliderStep=[1/handles.SLIDER_IMGMAX.Max,10/handles.SLIDER_IMGMAX.Max];
+    SLIDER_IMGMAX_Callback(handles.SLIDER_IMGMAX,[],handles);
+    handles.FIGURE_IMG2LOC.Name=cat(2,pathname,filename);
+    msgbox(sprintf('%s successfully loaded\n',filename),'Open Image 2 Localisation Analysis File','modal');
+end
+
+% --- Executes on button press in BUTTON_SAVE.
+function BUTTON_SAVE_Callback(~, ~, handles)
+global rawdata localdata;%#ok<NUSED>
+[pathname,~,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
+if isempty(pathname)
+    pathname='./';
+end
+[filename,pathname,~]=uiputfile({'*.i2l','image2localisation file (*.i2l)';...
+    '*.*','All Files (*.*)'},...
+    'Select Saved Image 2 Localisation Analysis File',pathname);
+if pathname~=0
+    filename=cat(2,pathname,filename);
+    version='7.3';
+    info.imglen=handles.VAL_IMGLENGTH.String;
+    info.imgwidth=handles.VAL_IMGWIDTH.String;
+    info.bitdim=handles.VAL_IMGBITDEPTH.String;
+    info.nimg=handles.VAL_IMGNUM.String;
+    info.nch=handles.VAL_IMGCHANNEL.String;
+    info.nslice=handles.VAL_IMGSLICE.String;
+    info.nframe=handles.VAL_IMGFRAME.String;
+    info.minval=handles.VAL_IMGMIN.String;
+    info.maxval=handles.VAL_IMGMAX.String;
+    info.xres=handles.VAL_IMGXRES.String;
+    info.yres=handles.VAL_IMGYRES.String;
+    info.spacing=handles.VAL_IMGSPACING.String;
+    info.nn=handles.VAL_NNPIXEL.String;
+    info.znn=handles.VAL_ZNNPIXEL.String;
+    info.threshold=handles.VAL_THRESHOLD.String;
+    info.resolution={handles.VAL_RESX.String,handles.VAL_RESY.String,handles.VAL_RESZ.String}; %#ok<STRNU>
+    save(filename,'rawdata','localdata','info','-mat',cat(2,'-v',version));
+    handles.LOCSUPRES.Name=filename;
+    msgbox(sprintf('%s saved in ver %s\n',filename,version),'Save File','modal');
+else
+    % user interuption
+    msgbox(sprintf('File save cancelled\n'),'Save File','modal');
+end
+
 %-------------------------------------------------------------------------
 function VAL_NNPIXEL_Callback(hObject, ~, ~)
 val=str2double(hObject.String);
@@ -391,7 +494,7 @@ try
                 yorg=rawdata.y(ypix-nn);
                 val=rawdata.val(cidx,xpix-nn:xpix+nn,ypix-nn:ypix+nn,zpix-znn:zpix+znn,fidx);
                 val(val<threshold)=0;
-                Imedian=median(val(:));
+                Imedian=median(val(:));%need to decide on this criteria
                 if Imedian>0
                     local(localidx,1:3)=roicentroid([i,j,k,val(:)],ds,[xorg,yorg,zorg]);
                     intensity(localidx)=sum(val(:));
@@ -456,9 +559,9 @@ if ischar(filename)
                 tabval(startidx:endidx,strcmp(localdata.colname,'y'))=localdata.val{cidx,fidx}(:,2)*1000;
                 tabval(startidx:endidx,strcmp(localdata.colname,'z'))=localdata.val{cidx,fidx}(:,3)*1000;
                 tabval(startidx:endidx,strcmp(localdata.colname,'psf-photon-count'))=localdata.val{cidx,fidx}(:,4);
-                tabval(startidx:endidx,strcmp(localdata.colname,'psfx'))=ones(size(localdata.val{cidx,fidx},1),1)*0.25;
-                tabval(startidx:endidx,strcmp(localdata.colname,'psfy'))=ones(size(localdata.val{cidx,fidx},1),1)*0.25;
-                tabval(startidx:endidx,strcmp(localdata.colname,'psfz'))=ones(size(localdata.val{cidx,fidx},1),1)*0.5;
+                tabval(startidx:endidx,strcmp(localdata.colname,'psfx'))=ones(size(localdata.val{cidx,fidx},1),1)*0.025;
+                tabval(startidx:endidx,strcmp(localdata.colname,'psfy'))=ones(size(localdata.val{cidx,fidx},1),1)*0.025;
+                tabval(startidx:endidx,strcmp(localdata.colname,'psfz'))=ones(size(localdata.val{cidx,fidx},1),1)*0.05;
                 tabval(startidx:endidx,strcmp(localdata.colname,'background11'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
                 tabval(startidx:endidx,strcmp(localdata.colname,'background12'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
                 tabval(startidx:endidx,strcmp(localdata.colname,'background21'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
