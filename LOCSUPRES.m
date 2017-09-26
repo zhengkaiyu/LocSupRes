@@ -490,7 +490,7 @@ DATA.datainfo.dataname=[];
 DATA.datainfo.scaled=false;
 DATA.datainfo.probe_colours='r';
 % calculation parameters
-DATA.datainfo.localdist=[0.5 0.5 0.5];
+DATA.datainfo.localdist=[1 1 1];
 DATA.datainfo.min_cluster_size=[50 50 50];
 DATA.datainfo.synaptic_range=0.2;
 DATA.datainfo.per_synapse=0.5;
@@ -871,7 +871,7 @@ try
         'WindowStyle','normal',...
         'Color',[0.2,0.2,0.2]);
     setappdata(waitbar_handle,'canceling',0);
-    T = clusterdata(position,'criterion','distance','cutoff',DATA.datainfo.localdist(pidx),'distance','euclidean','linkage','median','savememory',savemem);
+    T = clusterdata(position,'criterion','distance','cutoff',DATA.datainfo.localdist(pidx)/2,'distance','euclidean','linkage','median','savememory',savemem);
     [clustersize,~,~]=histcounts(T,0.5:1:max(T)+0.5);
     validclusterid=find(clustersize>DATA.datainfo.min_cluster_size(pidx));
     xlim(handles.PANEL_CLUSTER,[DATA.datainfo.X(1),DATA.datainfo.X(end)]);xlabel('X');
@@ -1019,7 +1019,7 @@ try
         selected_cluster=handles.TABLE_CLUSTERINFO.Data(handles.TABLE_CLUSTERINFO.UserData,1);
         currentcentroid=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid}');
         n_cluster=numel(selected_cluster);
-        prox_dist=2*max(DATA.datainfo.localdist);
+        prox_dist=max(DATA.datainfo.localdist);
         probeidx=1;
         for clusterid=1:n_cluster
             fh=figure(135+plotcount);
@@ -1303,7 +1303,7 @@ try
         selected_cluster=handles.TABLE_CLUSTERINFO.Data(handles.TABLE_CLUSTERINFO.UserData,1);
         n_cluster=numel(selected_cluster);
         currentsynapse=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid_synapse}');
-        prox_dist=2*max(DATA.datainfo.localdist);
+        prox_dist=max(DATA.datainfo.localdist);
         for clusterid=1:n_cluster
             fh=figure(1350+plotcount);
             fh.Name=sprintf('Nearest Probe Site Distance to cluster%g synapse',selected_cluster(clusterid));
