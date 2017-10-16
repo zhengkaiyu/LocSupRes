@@ -22,7 +22,7 @@ function varargout = LOCSUPRES(varargin)
 
 % Edit the above text to modify the response to help LOCSUPRES
 
-% Last Modified by GUIDE v2.5 16-Oct-2017 14:21:18
+% Last Modified by GUIDE v2.5 15-Oct-2017 01:10:31
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -405,6 +405,9 @@ if hObject.Value
     addtarget(hObject.UserData,handles.PANEL_CLUSTER);
 else
     removetarget(hObject.UserData,handles.PANEL_CLUSTER);
+    handles.PANEL_SCATTER3D.XLim=
+    handles.PANEL_SCATTER3D.YLim=
+    handles.PANEL_SCATTER3D.ZLim=
 end
 
 % --- Executes on button press in BUTTON_CLEARPANELCLUSTER.
@@ -536,7 +539,7 @@ BUTTON_CLEARPANELSCATTER3D_Callback([],[],handles);
 % SET PANEL_CLUSTER PARAMETERS
 BUTTON_CLEARPANELCLUSTER_Callback([],[],handles);
 handles.TOGGLE_LINKAXES.UserData=linkprop([handles.PANEL_SCATTER3D,handles.PANEL_CLUSTER],...
-    {'CameraPosition','CameraUpVector','XLim','YLim','ZLim'});
+    {'CameraPosition','CameraUpVector',''XLim','YLim','ZLim'});
 removetarget(handles.TOGGLE_LINKAXES.UserData,handles.PANEL_CLUSTER);
 
 function display_datainfo( output_to )
