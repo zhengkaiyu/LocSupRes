@@ -527,7 +527,6 @@ handles.MENU_ANALYSOR.String={'reduce_dubious_localisation',...
     'intercluster_distribution',...
     'identify_synapse',...
     'analyse_synapse_nn_site',...
-    'analyse_synapse_subcluster_sites',...
     'analyse_synapse_subcluster_site'};
 handles.MENU_ANALYSOR.Value=1;
 handles.MENU_.Value=1;
@@ -785,10 +784,24 @@ end
 
 function figure_keypress(~,eventkey)
 switch eventkey.Key
-    case {'f3'}
+    case {'f9'}
         % export trace
         %export_panel(findobj(handle,'Type','Axes'));
         export_panel(gca);
+    case {'1','2','3','4'}
+        % unplot scatter for synapse analysis subplot
+        hplot=gca;
+        switch hplot.Tag
+            case 'synapse_cluster'
+                hplot.Children(str2double(eventkey.Key)).Visible='on';
+        end
+    case {'f1','f2','f3','f4'}
+        % plot scatter for synapse analysis subplot
+        hplot=gca;
+        switch hplot.Tag
+            case 'synapse_cluster'
+                hplot.Children(str2double(eventkey.Key(2))).Visible='off';
+        end
 end
 
 %==User Functions for analysor============================================
@@ -1357,6 +1370,7 @@ try
                 'Color',[0.5,0.5,0.5],...
                 'Keypressfcn',@figure_keypress);
             sph=subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);hold all;
+            sph.Tag='synapse_cluster';
             plot3(handles.PANEL_CLUSTER,currentsynapse(clusterid,1),currentsynapse(clusterid,2),currentsynapse(clusterid,3),...
                 'LineStyle','none','LineWidth',4,...
                 'MarkerSize',5,'Marker','+',...
