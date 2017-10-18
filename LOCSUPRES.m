@@ -788,19 +788,27 @@ switch eventkey.Key
         % export trace
         %export_panel(findobj(handle,'Type','Axes'));
         export_panel(gca);
-    case {'1','2','3','4'}
-        % unplot scatter for synapse analysis subplot
-        hplot=gca;
-        switch hplot.Tag
-            case 'synapse_cluster'
-                hplot.Children(str2double(eventkey.Key)).Visible='on';
-        end
     case {'f1','f2','f3','f4'}
         % plot scatter for synapse analysis subplot
         hplot=gca;
         switch hplot.Tag
-            case 'synapse_cluster'
-                hplot.Children(str2double(eventkey.Key(2))).Visible='off';
+            case {'synapse_cluster','synapse_ncluster'}
+                switch hplot.Children(str2double(eventkey.Key(2))).Visible
+                    case 'off'
+                        hplot.Children(str2double(eventkey.Key(2))).Visible='on';
+                    case 'on'
+                        hplot.Children(str2double(eventkey.Key(2))).Visible='off';
+                end
+        end
+    case {'f11'}
+        % link axes
+        hplot=gca;
+        switch hplot.Tag
+            case 'synapse_ncluster'
+                temp=findobj(hplot.Parent,'Type','Axes');% find all subplot
+                hplotidx=find(cellfun(@(x)isempty(x.String),{temp.Title}));% find all scatter
+                
+                linkprop(temp(fliplr(hplotidx)),{'CameraPosition','CameraUpVector','XLim','YLim','ZLim'});
         end
 end
 
@@ -1382,8 +1390,10 @@ try
                 proximity=rad<=prox_dist;
                 rad=rad(proximity);
                 az=rad2deg(az(proximity));el=rad2deg(el(proximity));
+                viewaz(probeidx)=mean(az);viewel(probeidx)=mean(el);
                 %calculate volume information
-                temp=alphaShape(d_len(proximity,1:3),1,'HoleThreshold',0.2);
+                temp=alphaShape(d_len(proximity,1:3),Inf,'HoleThreshold',0,'RegionThreshold',0);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))))=temp;
                 pc=criticalAlpha(temp,'one-region');
                 if isempty(pc)
                     vf=0;surfarea=0;
@@ -1413,6 +1423,7 @@ try
                     plot3(probesite(:,1),probesite(:,2),probesite(:,3),...
                         'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
                         'MarkerSize',3,'Parent',sph);
+                    viewaz(probeidx)=[];viewel(probeidx)=[];
                 elseif s(probeidx)==currentprobe
                     plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,...
                         'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
@@ -1429,7 +1440,6 @@ try
                         'FaceAlpha',0.4,...
                         'Parent',sph);
                 end
-                view(sph,3);
                 daspect(sph,[1 1 1]);
                 xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
             end
@@ -1444,6 +1454,8 @@ try
             sph.YGrid='on';ylabel(sph,'Y');
             sph.ZGrid='on';zlabel(sph,'Z');
             axis(sph,'equal');
+            DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view=[nanmean(viewaz) nanmean(viewel)];
+            view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
         msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');
     else
@@ -1459,14 +1471,14 @@ end
 function analyse_synapse_subcluster_site(handles)
 global DATA;
 try
-     % update probe menu
+    % update probe menu
     fname=fieldnames(DATA.datainfo);
     fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
     probe_list=cell(DATA.datainfo.n_probe,1);
     for idx=1:DATA.datainfo.n_probe
         probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
     end
-     set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
     set(0,'DefaultUicontrolForegroundColor','k');
     [s,v] = listdlg('PromptString','Select neighbouring probe:',...
         'SelectionMode','multiple',...
@@ -1480,11 +1492,11 @@ try
             pathname='./';
         end
         plotcount=0;
+        prox_dist=max(DATA.datainfo.localdist);
         currentprobe=handles.MENU_PROBE.Value;
         selected_cluster=handles.TABLE_CLUSTERINFO.Data(handles.TABLE_CLUSTERINFO.UserData,1);
         n_cluster=numel(selected_cluster);
         currentsynapse=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid_synapse}');
-        prox_dist=max(DATA.datainfo.localdist);
         for clusterid=1:n_cluster
             fh=figure('Name',sprintf('Sub-cluster analysis for cluster%g synapse',selected_cluster(clusterid)),...
                 'NumberTitle','off',...
@@ -1494,63 +1506,64 @@ try
                 'Color',[0.5,0.5,0.5],...
                 'Keypressfcn',@figure_keypress);
             sph=subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);hold all;
+            sph.Tag='synapse_ncluster';
             plot3(handles.PANEL_CLUSTER,currentsynapse(clusterid,1),currentsynapse(clusterid,2),currentsynapse(clusterid,3),...
                 'LineStyle','none','LineWidth',4,...
                 'MarkerSize',5,'Marker','+',...
                 'Color','w','Parent',sph);
+            % work out orientation
             for probeidx=1:numel(s)%go through each probe including self if selected
-                othersite=DATA.probe(s(probeidx)).location;
-                %calculate volume information
-                linkage(cluster_coord,'ward','euclidean','savememory','on');
-                %temp=alphaShape(d_len(proximity,1:3),1,'HoleThreshold',0.2);
-                pc=criticalAlpha(temp,'one-region');
-                if isempty(pc)
-                    vf=0;surfarea=0;
-                else
-                    temp.Alpha=pc;
-                    vf=volume(temp)/(4/3*pi*prox_dist^3);
-                    surfarea=surfaceArea(temp);
+                probecluster=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))));
+                if ~isempty(probecluster.Points)
+                    clustertree=linkage(probecluster.Points,'centroid','euclidean','savememory','on');
+                    %c = cluster(clustertree,'cutoff',0.3,'depth',1,'criterion','distance');
+                    c = cluster(clustertree,'maxclust',5);
+                    subplot(2,numel(s)+2,probeidx,'Parent',fh);
+                    dendrogram(clustertree);
+                    xlabel('index','FontSize',8);
+                    ylabel('level','FontSize',8);
+                    title(sprintf('Probe %s',probe_list{probeidx}));
+                    subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
+                    scatter3(probecluster.Points(:,1)+currentsynapse(clusterid,1),...
+                        probecluster.Points(:,2)+currentsynapse(clusterid,2),...
+                        probecluster.Points(:,3)+currentsynapse(clusterid,3),...
+                        10,c,'filled');
+                    view(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
+                    xlim([currentsynapse(clusterid,1)-prox_dist,currentsynapse(clusterid,1)+prox_dist]);
+                    ylim([currentsynapse(clusterid,2)-prox_dist,currentsynapse(clusterid,2)+prox_dist]);
+                    zlim([currentsynapse(clusterid,3)-prox_dist,currentsynapse(clusterid,3)+prox_dist]);
+                    % export raw angle and distance data
+                    %filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
+                    %fid=fopen(filename,'w');
+                    %fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
+                    %fclose(fid);
+                    subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
+                    if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
+                        probesite=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx)))).Points;
+                        plot3(probesite(:,1)+currentsynapse(clusterid,1),...
+                            probesite(:,2)+currentsynapse(clusterid,2),...
+                            probesite(:,3)+currentsynapse(clusterid,3),...
+                            'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
+                            'MarkerSize',3,'Parent',sph);
+                    elseif s(probeidx)==currentprobe
+                        plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,...
+                            'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
+                            'EdgeColor','k',...
+                            'EdgeAlpha',0.2,...
+                            'FaceAlpha',0.4,...
+                            'Parent',sph);
+                    else
+                        pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
+                        plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,...
+                            'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
+                            'EdgeColor','k',...
+                            'EdgeAlpha',0.2,...
+                            'FaceAlpha',0.4,...
+                            'Parent',sph);
+                    end
+                    daspect(sph,[1 1 1]);
+                    xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
                 end
-                subplot(2,numel(s)+2,probeidx,'Parent',fh);
-                histogram2(az,el,-180:5:180,-90:5:90,'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
-                view([0,90]);axis('equal');
-                xlabel('az (^o)','FontSize',8);
-                ylabel('el (^o)','FontSize',8);
-                title(sprintf('Probe %s',probe_list{probeidx}));
-                subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
-                histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
-                xlabel('r (\mum)','FontSize',8);
-                title(sprintf('min = %4.3f\nmedian = %4.3f\nmean = %4.3f\nV_f = %4.3f\nArea = %4.3f',min(rad),mean(rad),median(rad),vf,surfarea));
-                % export raw angle and distance data
-                filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
-                fid=fopen(filename,'w');
-                fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
-                fclose(fid);
-                subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
-                if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
-                    probesite=DATA.probe(s(probeidx)).location(proximity,:);
-                    plot3(probesite(:,1),probesite(:,2),probesite(:,3),...
-                        'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
-                        'MarkerSize',3,'Parent',sph);
-                elseif s(probeidx)==currentprobe
-                    plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,...
-                        'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
-                        'EdgeColor','k',...
-                        'EdgeAlpha',0.2,...
-                        'FaceAlpha',0.4,...
-                        'Parent',sph);
-                else
-                    pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
-                    plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,...
-                        'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
-                        'EdgeColor','k',...
-                        'EdgeAlpha',0.2,...
-                        'FaceAlpha',0.4,...
-                        'Parent',sph);
-                end
-                view(sph,3);
-                daspect(sph,[1 1 1]);
-                xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
             end
             plotcount=plotcount+1;
             sph.Color=[0.5,0.5,0.5];
@@ -1563,6 +1576,7 @@ try
             sph.YGrid='on';ylabel(sph,'Y');
             sph.ZGrid='on';zlabel(sph,'Z');
             axis(sph,'equal');
+            view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
         msgbox(sprintf('cluster %d synapse synapse sub-cluster successfully analysed.\n',selected_cluster),'Sub-Cluster Analysis','modal');
     else
