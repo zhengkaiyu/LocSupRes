@@ -1385,7 +1385,7 @@ try
                 'Color','w','Parent',sph);
             for probeidx=1:numel(s)%go through each probe including self if selected
                 othersite=DATA.probe(s(probeidx)).location;
-                d_len=bsxfun(@minus,currentsynapse(clusterid,:),othersite);
+                d_len=bsxfun(@minus,othersite,currentsynapse(clusterid,:));
                 [az,el,rad]=cart2sph(d_len(:,1),d_len(:,2),d_len(:,3));
                 proximity=rad<=prox_dist;
                 rad=rad(proximity);
