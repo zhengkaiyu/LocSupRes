@@ -722,6 +722,8 @@ if n_cluster>0
             case 'mean_dist_synapse'
                 info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.mean_dist_synapse}');
                 colidx=colidx+3;
+            otherwise
+                
         end
     end
     % add centroid colnames
@@ -1515,9 +1517,10 @@ try
             for probeidx=1:numel(s)%go through each probe including self if selected
                 probecluster=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))));
                 if ~isempty(probecluster.Points)
-                    clustertree=linkage(probecluster.Points,'centroid','euclidean','savememory','on');
-                    %c = cluster(clustertree,'cutoff',0.3,'depth',1,'criterion','distance');
-                    c = cluster(clustertree,'maxclust',5);
+                    clustertree=linkage(probecluster.Points,'ward','euclidean','savememory','on');
+                    %c = cluster(clustertree,'cutoff',0.3,'depth',1,'criterion','inconsistent');
+                    c = cluster(clustertree,'cutoff',2,'depth',3,'criterion','inconsistent');
+                    %c = cluster(clustertree,'maxclust',5);
                     subplot(2,numel(s)+2,probeidx,'Parent',fh);
                     dendrogram(clustertree);
                     xlabel('index','FontSize',8);
@@ -1532,6 +1535,7 @@ try
                     xlim([currentsynapse(clusterid,1)-prox_dist,currentsynapse(clusterid,1)+prox_dist]);
                     ylim([currentsynapse(clusterid,2)-prox_dist,currentsynapse(clusterid,2)+prox_dist]);
                     zlim([currentsynapse(clusterid,3)-prox_dist,currentsynapse(clusterid,3)+prox_dist]);
+                    axis('equal');
                     % export raw angle and distance data
                     %filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
                     %fid=fopen(filename,'w');
