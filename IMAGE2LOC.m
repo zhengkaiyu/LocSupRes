@@ -514,7 +514,7 @@ try
     intensity(invalid)=[];
     chisq(invalid)=[];
     %x,y,z,photon-count
-    localdata.val{cidx,fidx}=[local(:,[2,1,3]),intensity,chisq];
+    localdata.val{cidx,fidx}=[local(:,[1,2,3]),intensity,chisq];
     fprintf(1,'finished\n');
     beep;beep;
     hObject.String='Localise';
@@ -605,7 +605,7 @@ fidx=handles.SLIDER_F.Value;
 threshold=handles.VAL_THRESHOLD.Value;
 val=squeeze(rawdata.val(cidx,:,:,zidx,fidx));
 val(val<threshold)=nan;
-imshow(val,[handles.SLIDER_IMGMIN.Value,handles.SLIDER_IMGMAX.Value],'Parent',handles.PANEL_IMAGE,'XData',rawdata.x,'YData',rawdata.y);
+imshow(val',[handles.SLIDER_IMGMIN.Value,handles.SLIDER_IMGMAX.Value],'Parent',handles.PANEL_IMAGE,'XData',rawdata.x,'YData',rawdata.y);
 axis(handles.PANEL_IMAGE,'on');
 if ~isempty(localdata.val{cidx,fidx})
     coloridx={'y','r','b','g'};
