@@ -1504,8 +1504,19 @@ try
             sph.ZGrid='on';zlabel(sph,'Z');
             axis(sph,'equal');
             normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
-            [az,el,r]=cart2sph(normvec(1),normvec(2),normvec(3));
+            [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
             view(sph,[rad2deg(az),90-rad2deg(el)]);
+            transl=eye(4);transl(4,1:3)=synapse_centre;
+            rotz=[cos(az),sin(az),0,0;...
+                -sin(az),cos(az),0,0;...
+                0,0,0,0;...
+                0,0,0,1];
+            roty=[cos(el),0,-sin(el),0;...
+                0,1,0,0;...
+                sin(el),0,cos(el),0;...
+                0,0,0,1];
+            transM=roty*rotz*transl;
+            tform=affine3d(transM);
             %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
         msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');

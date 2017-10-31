@@ -536,22 +536,22 @@ function BUTTON_EXPORTLOC_Callback(~, ~, handles)
 global localdata;
 [pathname,~,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
 if isempty(pathname)
-    pathname='./';
+    pathname=pwd;
 end
 % ask for one file to open
 [filename,pathname,~] = uiputfile({'*.csv','Bruker export ascii file (*.csv)';...
     '*.*','All Files (*.*)'},...
     'Select Localisation ASCII File',pathname);
 if ischar(filename)
-    filename=cat(2,pathname,filename);
+    fidx=handles.SLIDER_F.Value;
+    filename=cat(2,pathname,filename,'_frame',num2str(fidx));
     threshold=handles.VAL_THRESHOLD.Value;
     locsize=cellfun(@(x)size(x,1),localdata.val);
     tabval=zeros(sum(locsize(:)),numel(localdata.colname));
     nch=size(localdata.val,1);
-    nframe=size(localdata.val,2);
+    nframe=numel(fidx);%size(localdata.val,2);
     startidx=1;
     for cidx=1:nch
-        for fidx=1:nframe
             if ~isempty(localdata.val{cidx,fidx})
                 endidx=size(localdata.val{cidx,fidx},1)+startidx-1;
                 tabval(startidx:endidx,strcmp(localdata.colname,'probe'))=cidx-1;
@@ -571,7 +571,6 @@ if ischar(filename)
                 tabval(startidx:endidx,strcmp(localdata.colname,'accuracy'))=ones(size(localdata.val{cidx,fidx},1),1)*15;
                 startidx=endidx+1;
             end
-        end
     end
     %csvwrite(filename,tabval);
     fileID = fopen(filename,'w');
