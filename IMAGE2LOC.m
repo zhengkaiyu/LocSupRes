@@ -544,7 +544,7 @@ end
     'Select Localisation ASCII File',pathname);
 if ischar(filename)
     fidx=handles.SLIDER_F.Value;
-    filename=cat(2,pathname,filename,'_frame',num2str(fidx));
+    filename=cat(2,pathname,filename);
     threshold=handles.VAL_THRESHOLD.Value;
     locsize=cellfun(@(x)size(x,1),localdata.val);
     tabval=zeros(sum(locsize(:)),numel(localdata.colname));

@@ -1505,11 +1505,13 @@ try
             axis(sph,'equal');
             normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
             [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
-            view(sph,[rad2deg(az),90-rad2deg(el)]);
-            transl=eye(4);transl(4,1:3)=synapse_centre;
+            
+            view(sph,[rad2deg(az),rad2deg(el)]);
+            transl=eye(4);%transl(4,1:3)=-synapse_centre;
+            az=-az;el=-el;
             rotz=[cos(az),sin(az),0,0;...
                 -sin(az),cos(az),0,0;...
-                0,0,0,0;...
+                0,0,1,0;...
                 0,0,0,1];
             roty=[cos(el),0,-sin(el),0;...
                 0,1,0,0;...
@@ -1517,6 +1519,15 @@ try
                 0,0,0,1];
             transM=roty*rotz*transl;
             tform=affine3d(transM);
+            [x1,y1,z1] = transformPointsForward(tform,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe1.Points(:,1),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe1.Points(:,2),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe1.Points(:,3));
+            [x2,y2,z2] = transformPointsForward(tform,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe2.Points(:,1),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe2.Points(:,2),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe2.Points(:,3));
+            [x3,y3,z3] = transformPointsForward(tform,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe3.Points(:,1),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe3.Points(:,2),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe3.Points(:,3));
+            [x4,y4,z4] = transformPointsForward(tform,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe4.Points(:,1),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe4.Points(:,2),DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.probe4.Points(:,3));
+            figure(10);plot3(x1,y1,z1,'o','Color',DATA.datainfo.probe_colours(1));hold all;
+            plot3(x2,y2,z2,'o','Color',DATA.datainfo.probe_colours(2));
+            plot3(x3,y3,z3,'.','Color',DATA.datainfo.probe_colours(3));
+            plot3(x4,y4,z4,'.','Color',DATA.datainfo.probe_colours(4));
+            ax=gca;axis(ax,'equal');xlabel(ax,'X');ylabel(ax,'Y');zlabel(ax,'Z');
             %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
         msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');
