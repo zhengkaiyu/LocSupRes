@@ -1423,7 +1423,7 @@ try
                 proximity=rad<=prox_dist;
                 rad=rad(proximity);
                 az=rad2deg(az(proximity));el=rad2deg(el(proximity));
-                viewaz(probeidx)=mean(az);viewel(probeidx)=mean(el);
+                %viewaz(probeidx)=mean(az);viewel(probeidx)=mean(el);
                 %calculate volume information
                 temp=alphaShape(d_len(proximity,1:3),Inf,'HoleThreshold',0,'RegionThreshold',0);
                 pc=criticalAlpha(temp,'one-region');
@@ -1469,7 +1469,7 @@ try
                             'EdgeAlpha',0.2,...
                             'FaceAlpha',0.4,...
                             'Parent',sph);
-                        viewvec(probeidx,:)=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).centroid-synapse_centre;
+                        %viewvec(probeidx,:)=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).centroid-synapse_centre;
                     else
                         %if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
                         pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
@@ -1479,7 +1479,6 @@ try
                             'EdgeAlpha',0.2,...
                             'FaceAlpha',0.4,...
                             'Parent',sph);
-                        
                     end
                 else
                     % just scatter points
@@ -1487,7 +1486,7 @@ try
                     plot3(probesite(:,1),probesite(:,2),probesite(:,3),...
                         'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
                         'MarkerSize',3,'Parent',sph);
-                    viewaz(probeidx)=nan;viewel(probeidx)=nan;
+                    %viewaz(probeidx)=nan;viewel(probeidx)=nan;
                 end
                 daspect(sph,[1 1 1]);
                 xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
@@ -1505,8 +1504,8 @@ try
             axis(sph,'equal');
             normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
             [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
-            
             view(sph,[rad2deg(az),rad2deg(el)]);
+            %{
             transl=eye(4);%transl(4,1:3)=-synapse_centre;
             az=-az;el=-el;
             rotz=[cos(az),sin(az),0,0;...
@@ -1528,6 +1527,7 @@ try
             plot3(x3,y3,z3,'.','Color',DATA.datainfo.probe_colours(3));
             plot3(x4,y4,z4,'.','Color',DATA.datainfo.probe_colours(4));
             ax=gca;axis(ax,'equal');xlabel(ax,'X');ylabel(ax,'Y');zlabel(ax,'Z');
+            %}
             %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
         msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');
@@ -1562,7 +1562,7 @@ try
     if v%validated by click on OK
         [pathname,~,~]=fileparts(handles.LOCSUPRES.Name);
         if isempty(pathname)
-            pathname='./';
+            pathname=pwd;
         end
         plotcount=0;
         prox_dist=max(DATA.datainfo.localdist);
