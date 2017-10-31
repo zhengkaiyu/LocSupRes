@@ -1419,7 +1419,6 @@ try
                 viewaz(probeidx)=mean(az);viewel(probeidx)=mean(el);
                 %calculate volume information
                 temp=alphaShape(d_len(proximity,1:3),Inf,'HoleThreshold',0,'RegionThreshold',0);
-                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))))=temp;
                 pc=criticalAlpha(temp,'one-region');
                 if isempty(pc)
                     vf=0;rou=0;surfarea=0;
@@ -1430,12 +1429,13 @@ try
                     rou=numel(rad)/V_cluster;
                     surfarea=surfaceArea(temp);
                 end
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))))=temp;
                 subplot(2,numel(s)+2,probeidx,'Parent',fh);
-                histogram2(az,el,-180:5:180,-90:5:90,'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
+                histogram2(az,el,-180:10:180,-90:10:90,'FaceColor','flat','DisplayStyle','tile','EdgeColor','none');
                 view([0,90]);axis('equal');
                 xlabel('az (^o)','FontSize',8);
                 ylabel('el (^o)','FontSize',8);
-                title(sprintf('Probe %s',probe_list{probeidx}));
+                title(sprintf('Probe %s',probe_list{probeidx}),'Color',DATA.datainfo.probe_colours(s(probeidx)));
                 subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
                 histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
@@ -1447,6 +1447,10 @@ try
                     cat(2,'A_{surface} = ',sprintf('%4.2f',surfarea),'\mum^2')},...
                     'Interpreter','tex');
                 % export raw angle and distance data
+                pathname=cat(2,pathname,filesep,'synapse_nn_site');
+                if ~isdir(pathname)
+                    dos(cat(2,'mkdir ',pathname));
+                end
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
                 fid=fopen(filename,'w');
                 fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
@@ -1478,7 +1482,7 @@ try
                     plot3(probesite(:,1),probesite(:,2),probesite(:,3),...
                         'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
                         'MarkerSize',3,'Parent',sph);
-                    viewaz(probeidx)=[];viewel(probeidx)=[];
+                    viewaz(probeidx)=nan;viewel(probeidx)=nan;
                 end
                 daspect(sph,[1 1 1]);
                 xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
