@@ -721,7 +721,7 @@ if n_cluster>0
                 %colidx=colidx+3;
             case 'mean_dist_synapse'
                 info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.mean_dist_synapse}');
-                colidx=colidx+3;    
+                colidx=colidx+3;
             case {'synapse','view'}
             otherwise
                 
@@ -1307,6 +1307,8 @@ try
                     [~,Centre,~,Dist] = kmeans([pc_pts(synapse_pc,:);po_pts(synapse_po,:)],1,'Distance','sqeuclidean');
                     meanptc_dist=[mean(Dist),median(Dist),max(Dist)];
                     pdistrec{pc_idx,1}=d;
+                    viewvec=mean([DATA.probe(probeidx).cluster(pc_idx).centroid-Centre;DATA.probe(s).cluster(po_idx).centroid-Centre],1);
+                    DATA.probe(probeidx).cluster(pc_idx).view=viewvec;
                     %[~,pind]=min(d);
                     %loc=(pc_pts(pind(1),:)+po_pts(Ind(pind(1)),:))/2;%half way of closes site pair
                     loc=[nan,nan,nan];
@@ -1376,7 +1378,11 @@ try
     if v%validated by click on OK
         [pathname,~,~]=fileparts(handles.LOCSUPRES.Name);
         if isempty(pathname)
-            pathname='./';
+            pathname=pwd;
+        end
+        pathname=cat(2,pathname,filesep,'synapse_nn_site');
+        if ~isdir(pathname)
+            dos(cat(2,'mkdir "',pathname,'"'));
         end
         plotcount=0;
         currentprobe=handles.MENU_PROBE.Value;
@@ -1384,14 +1390,14 @@ try
         n_cluster=numel(selected_cluster);
         currentsynapse=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid_synapse}');
         prox_dist=max(DATA.datainfo.localdist);
-         set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
-    set(0,'DefaultUicontrolForegroundColor','k');
-    options.Interpreter = 'tex';
-    options.WindowStyle = 'modal';
+        set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+        set(0,'DefaultUicontrolForegroundColor','k');
+        options.Interpreter = 'tex';
+        options.WindowStyle = 'modal';
         answer = inputdlg('Enter analysis sphere radius (\mum)[default use max(localdist)]:',...
             'Synapse sphere radius', 1,{num2str(prox_dist)},options);
         set(0,'DefaultUicontrolBackgroundColor','k');
-    set(0,'DefaultUicontrolForegroundColor','w');
+        set(0,'DefaultUicontrolForegroundColor','w');
         if ~isempty(prox_dist)
             prox_dist=max(str2double(answer),0.1);
         end
@@ -1409,6 +1415,7 @@ try
                 'LineStyle','none','LineWidth',4,...
                 'MarkerSize',5,'Marker','+',...
                 'Color','w','Parent',sph);
+            synapse_centre=currentsynapse(clusterid,:);
             for probeidx=1:numel(s)%go through each probe including self if selected
                 othersite=DATA.probe(s(probeidx)).location;
                 d_len=bsxfun(@minus,othersite,currentsynapse(clusterid,:));
@@ -1447,10 +1454,6 @@ try
                     cat(2,'A_{surface} = ',sprintf('%4.2f',surfarea),'\mum^2')},...
                     'Interpreter','tex');
                 % export raw angle and distance data
-                pathname=cat(2,pathname,filesep,'synapse_nn_site');
-                if ~isdir(pathname)
-                    dos(cat(2,'mkdir ',pathname));
-                end
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
                 fid=fopen(filename,'w');
                 fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
@@ -1466,6 +1469,7 @@ try
                             'EdgeAlpha',0.2,...
                             'FaceAlpha',0.4,...
                             'Parent',sph);
+                        viewvec(probeidx,:)=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).centroid-synapse_centre;
                     else
                         %if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
                         pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
@@ -1475,6 +1479,7 @@ try
                             'EdgeAlpha',0.2,...
                             'FaceAlpha',0.4,...
                             'Parent',sph);
+                        
                     end
                 else
                     % just scatter points
@@ -1498,8 +1503,10 @@ try
             sph.YGrid='on';ylabel(sph,'Y');
             sph.ZGrid='on';zlabel(sph,'Z');
             axis(sph,'equal');
-            DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view=[nanmean(viewaz) nanmean(viewel)];
-            view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
+            normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
+            [az,el,r]=cart2sph(normvec(1),normvec(2),normvec(3));
+            view(sph,[rad2deg(az),90-rad2deg(el)]);
+            %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
         msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');
     else
