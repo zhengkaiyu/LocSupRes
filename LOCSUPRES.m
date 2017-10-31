@@ -717,11 +717,12 @@ if n_cluster>0
                 info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.centroid_synapse}');
                 colidx=colidx+3;
             case 'loc_synapse'
-                info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.loc_synapse}');
-                colidx=colidx+3;
+                %info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.loc_synapse}');
+                %colidx=colidx+3;
             case 'mean_dist_synapse'
                 info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.mean_dist_synapse}');
-                colidx=colidx+3;
+                colidx=colidx+3;    
+            case {'synapse','view'}
             otherwise
                 
         end
@@ -737,11 +738,6 @@ if n_cluster>0
         colname(temp+3:end+2)=colname(temp+1:end);
         colname(temp:temp+2)={'C_synapse(x)','C_synapse(y)','C_synapse(z)'};
     end
-    temp=find(strcmp(colname,'loc_synapse'));
-    if ~isempty(temp)
-        colname(temp+3:end+2)=colname(temp+1:end);
-        colname(temp:temp+2)={'loc_synapse(x)','loc_synapse(y)','loc_synapse(z)'};
-    end
     % add Dist colnames
     temp=find(strcmp(colname,'Dist'));
     if ~isempty(temp)
@@ -753,6 +749,23 @@ if n_cluster>0
     if ~isempty(temp)
         colname(temp+3:end+2)=colname(temp+1:end);
         colname(temp:temp+2)={'Mean Syn Dist','Median Syn Dist','Max Syn Dist'};
+    end
+    % remove loc_synapse (deprecated fields)
+    temp=find(strcmp(colname,'loc_synapse'));
+    if ~isempty(temp)
+        %colname(temp+3:end+2)=colname(temp+1:end);
+        %colname(temp:temp+2)={'loc_synapse(x)','loc_synapse(y)','loc_synapse(z)'};
+        colname(temp)=[];
+    end
+    % remove structured field synapse
+    temp=find(strcmp(colname,'synapse'));
+    if ~isempty(temp)
+        colname(temp)=[];
+    end
+    % remove view field
+    temp=find(strcmp(colname,'view'));
+    if ~isempty(temp)
+        colname(temp)=[];
     end
 else
     info=[];
@@ -1371,6 +1384,17 @@ try
         n_cluster=numel(selected_cluster);
         currentsynapse=cell2mat({DATA.probe(currentprobe).cluster(selected_cluster).centroid_synapse}');
         prox_dist=max(DATA.datainfo.localdist);
+         set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolForegroundColor','k');
+    options.Interpreter = 'tex';
+    options.WindowStyle = 'modal';
+        answer = inputdlg('Enter analysis sphere radius (\mum)[default use max(localdist)]:',...
+            'Synapse sphere radius', 1,{num2str(prox_dist)},options);
+        set(0,'DefaultUicontrolBackgroundColor','k');
+    set(0,'DefaultUicontrolForegroundColor','w');
+        if ~isempty(prox_dist)
+            prox_dist=max(str2double(answer),0.1);
+        end
         for clusterid=1:n_cluster
             fh=figure('Name',sprintf('Nearest Probe Site Distance to cluster%g synapse',selected_cluster(clusterid)),...
                 'NumberTitle','off',...
@@ -1398,10 +1422,12 @@ try
                 DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))))=temp;
                 pc=criticalAlpha(temp,'one-region');
                 if isempty(pc)
-                    vf=0;surfarea=0;
+                    vf=0;rou=0;surfarea=0;
                 else
                     temp.Alpha=pc;
-                    vf=volume(temp)/(4/3*pi*prox_dist^3);
+                    V_cluster=volume(temp);
+                    vf=V_cluster/(4/3*pi*prox_dist^3);
+                    rou=numel(rad)/V_cluster;
                     surfarea=surfaceArea(temp);
                 end
                 subplot(2,numel(s)+2,probeidx,'Parent',fh);
@@ -1413,34 +1439,46 @@ try
                 subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
                 histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
-                title(sprintf('min = %4.3f\nmedian = %4.3f\nmean = %4.3f\nV_f = %4.3f\nArea = %4.3f',min(rad),mean(rad),median(rad),vf,surfarea));
+                title({cat(2,'r_{min} = ',sprintf('%4.3f',min(rad)),'\mum');...
+                    cat(2,'r_{mean} = ',sprintf('%4.3f',mean(rad)),'\mum');...
+                    cat(2,'r_{median} = ',sprintf('%4.3f',median(rad)),'\mum');...
+                    cat(2,'V_f = ',sprintf('%4.2f',vf*100),'%');...
+                    cat(2,'\rho = ',sprintf('%4.2f',rou),'\mum^{-3}');...
+                    cat(2,'A_{surface} = ',sprintf('%4.2f',surfarea),'\mum^2')},...
+                    'Interpreter','tex');
                 % export raw angle and distance data
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
                 fid=fopen(filename,'w');
                 fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
                 fclose(fid);
                 subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
-                if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
+                if isfield(DATA.probe(s(probeidx)).cluster,'shape')
+                    % has cluster defined
+                    if s(probeidx)==currentprobe
+                        % if it is selected one
+                        plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,...
+                            'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
+                            'EdgeColor','k',...
+                            'EdgeAlpha',0.2,...
+                            'FaceAlpha',0.4,...
+                            'Parent',sph);
+                    else
+                        %if ~isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),cat(2,'nnc',num2str(s(probeidx)-1),'_id'))
+                        pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
+                        plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,...
+                            'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
+                            'EdgeColor','k',...
+                            'EdgeAlpha',0.2,...
+                            'FaceAlpha',0.4,...
+                            'Parent',sph);
+                    end
+                else
+                    % just scatter points
                     probesite=DATA.probe(s(probeidx)).location(proximity,:);
                     plot3(probesite(:,1),probesite(:,2),probesite(:,3),...
                         'LineStyle','none','Marker','o','Color',DATA.datainfo.probe_colours(s(probeidx)),...
                         'MarkerSize',3,'Parent',sph);
                     viewaz(probeidx)=[];viewel(probeidx)=[];
-                elseif s(probeidx)==currentprobe
-                    plot(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).shape,...
-                        'Facecolor',DATA.datainfo.probe_colours(currentprobe),...
-                        'EdgeColor','k',...
-                        'EdgeAlpha',0.2,...
-                        'FaceAlpha',0.4,...
-                        'Parent',sph);
-                else
-                    pco_idx=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nnc',num2str(s(probeidx)-1),'_id'));
-                    plot(DATA.probe(s(probeidx)).cluster(pco_idx).shape,...
-                        'Facecolor',DATA.datainfo.probe_colours(s(probeidx)),...
-                        'EdgeColor','k',...
-                        'EdgeAlpha',0.2,...
-                        'FaceAlpha',0.4,...
-                        'Parent',sph);
                 end
                 daspect(sph,[1 1 1]);
                 xlim(sph,'auto');ylim(sph,'auto');zlim(sph,'auto');
