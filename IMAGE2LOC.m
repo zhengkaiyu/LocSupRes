@@ -22,7 +22,7 @@ function varargout = IMAGE2LOC(varargin)
 
 % Edit the above text to modify the response to help IMAGE2LOC
 
-% Last Modified by GUIDE v2.5 25-Sep-2017 16:03:23
+% Last Modified by GUIDE v2.5 03-Nov-2017 22:24:12
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -464,7 +464,8 @@ hObject.SliderStep=[1/hObject.Max,10/hObject.Max];
 handles.VAL_MIN.String=hObject.Value;
 
 %-------------------------------------------------------------------------
-function BUTTON_LOCALISE_Callback(hObject, ~, handles)
+% --- Executes on button press in BUTTON_LOCALISEFRAME.
+function BUTTON_LOCALISEFRAME_Callback(hObject, ~, handles)
 global rawdata localdata;
 try
     nn=handles.VAL_NNPIXEL.Value;
@@ -473,31 +474,35 @@ try
     fidx=handles.SLIDER_F.Value;
     threshold=handles.VAL_THRESHOLD.Value;
     subimgsize=[2*nn+1,2*nn+1,2*znn+1];
-    loopsize=(numel(rawdata.x)-nn)*(numel(rawdata.y)-nn)*(numel(rawdata.z)-znn);
-    zstart=1+znn;
-    zstop=numel(rawdata.z)-znn;
+    nx=numel(rawdata.x)-nn*2;
+    ny=numel(rawdata.y)-nn*2;
+    nz=numel(rawdata.z)-znn*2;
+    loopsize=nx*ny*nz;
+    xstart=1+nn;xstop=numel(rawdata.x)-nn;
+    ystart=1+nn;ystop=numel(rawdata.y)-nn;
+    zstart=1+znn;zstop=numel(rawdata.z)-znn;
+    [i,j,k]=ind2sub(subimgsize,1:prod(subimgsize));
+    i=i(:);j=j(:);k=k(:);
+    ds=[rawdata.dx,rawdata.dy,rawdata.dz];
+    hObject.String='Calculating';pause(0.1);
+    fprintf(1,'start...\n');
     local=zeros(loopsize,3);
     intensity=zeros(loopsize,1);
     chisq=zeros(loopsize,1);
-    [i,j,k]=ind2sub(subimgsize,1:prod(subimgsize));
-    i=i(:);j=j(:);k=k(:);
     localidx=1;
-    ds=[rawdata.dx,rawdata.dy,rawdata.dz];
-    hObject.String='Calculating';pause(0.1);
-    fprintf(1,'start...\t');
+    tempval=squeeze(rawdata.val(cidx,:,:,:,fidx));
+    tempval(tempval<threshold)=0;
     for zpix=zstart:1:zstop
-        fprintf(1,'step %g/%g...\t',zpix,zstop);
+        fprintf(1,'frame %g, channel %g, step %g/%g...\n',fidx,cidx,zpix-nn,nz);
         zorg=rawdata.z(zpix-znn);
-        for xpix=1+nn:1:numel(rawdata.x)-nn
+        for xpix=xstart:1:xstop
             xorg=rawdata.x(xpix-nn);
-            for ypix=1+nn:1:numel(rawdata.y)-nn
+            for ypix=ystart:1:ystop
                 yorg=rawdata.y(ypix-nn);
-                val=rawdata.val(cidx,xpix-nn:xpix+nn,ypix-nn:ypix+nn,zpix-znn:zpix+znn,fidx);
-                val(val<threshold)=0;
+                val=tempval(xpix-nn:xpix+nn,ypix-nn:ypix+nn,zpix-znn:zpix+znn);
                 Imedian=median(val(:));%need to decide on this criteria
                 if Imedian>0
-                    local(localidx,1:3)=roicentroid([i,j,k,val(:)],ds,[xorg,yorg,zorg]);
-                    intensity(localidx)=sum(val(:));
+                    [intensity(localidx),local(localidx,1:3)]=roicentroid([i,j,k,val(:)],ds,[xorg,yorg,zorg]);
                     chisq(localidx)=Imedian/mean(val(:));
                 else
                     local(localidx,1:3)=[nan,nan,nan];
@@ -532,26 +537,150 @@ localdata.val{cidx,fidx}=[];
 updateimage(handles);
 msgbox(sprintf('Localisation for Channel%g Frame%g cleared.',cidx,fidx),'Localisation Cleard');
 
-function BUTTON_EXPORTLOC_Callback(~, ~, handles)
+function BUTTON_EXPORTFRAME_Callback(~, ~, handles)
 global localdata;
-[pathname,~,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
+[pathname,filename,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
 if isempty(pathname)
     pathname=pwd;
 end
+fidx=handles.SLIDER_F.Value;
+filename=cat(2,filename,'_frame',num2str(fidx));
 % ask for one file to open
 [filename,pathname,~] = uiputfile({'*.csv','Bruker export ascii file (*.csv)';...
     '*.*','All Files (*.*)'},...
-    'Select Localisation ASCII File',pathname);
+    'Select Localisation ASCII File',cat(2,pathname,filesep,filename));
 if ischar(filename)
-    fidx=handles.SLIDER_F.Value;
     filename=cat(2,pathname,filename);
     threshold=handles.VAL_THRESHOLD.Value;
     locsize=cellfun(@(x)size(x,1),localdata.val);
     tabval=zeros(sum(locsize(:)),numel(localdata.colname));
     nch=size(localdata.val,1);
-    nframe=numel(fidx);%size(localdata.val,2);
     startidx=1;
     for cidx=1:nch
+        if ~isempty(localdata.val{cidx,fidx})
+            endidx=size(localdata.val{cidx,fidx},1)+startidx-1;
+            tabval(startidx:endidx,strcmp(localdata.colname,'probe'))=cidx-1;
+            tabval(startidx:endidx,strcmp(localdata.colname,'x'))=localdata.val{cidx,fidx}(:,1)*1000;
+            tabval(startidx:endidx,strcmp(localdata.colname,'y'))=localdata.val{cidx,fidx}(:,2)*1000;
+            tabval(startidx:endidx,strcmp(localdata.colname,'z'))=localdata.val{cidx,fidx}(:,3)*1000;
+            tabval(startidx:endidx,strcmp(localdata.colname,'psf-photon-count'))=localdata.val{cidx,fidx}(:,4);
+            tabval(startidx:endidx,strcmp(localdata.colname,'psfx'))=ones(size(localdata.val{cidx,fidx},1),1)*0.025;
+            tabval(startidx:endidx,strcmp(localdata.colname,'psfy'))=ones(size(localdata.val{cidx,fidx},1),1)*0.025;
+            tabval(startidx:endidx,strcmp(localdata.colname,'psfz'))=ones(size(localdata.val{cidx,fidx},1),1)*0.05;
+            tabval(startidx:endidx,strcmp(localdata.colname,'background11'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
+            tabval(startidx:endidx,strcmp(localdata.colname,'background12'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
+            tabval(startidx:endidx,strcmp(localdata.colname,'background21'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
+            tabval(startidx:endidx,strcmp(localdata.colname,'background22'))=ones(size(localdata.val{cidx,fidx},1),1)*threshold;
+            tabval(startidx:endidx,strcmp(localdata.colname,'chisq'))=localdata.val{cidx,fidx}(:,5);
+            tabval(startidx:endidx,strcmp(localdata.colname,'valid'))=ones(size(localdata.val{cidx,fidx},1),1);
+            tabval(startidx:endidx,strcmp(localdata.colname,'accuracy'))=ones(size(localdata.val{cidx,fidx},1),1)*15;
+            startidx=endidx+1;
+        end
+    end
+    %csvwrite(filename,tabval);
+    fileID = fopen(filename,'w');
+    headerfmt=[repmat('%s,',1,numel(localdata.colname)-1),'%s\n'];
+    filefmt=[repmat('%0.6g,',1,numel(localdata.colname)-1),'%0.6g\n'];
+    fprintf(fileID,headerfmt,localdata.colname{:});
+    fprintf(fileID,filefmt,tabval');
+    fclose(fileID);
+    msgbox('CSV file exported');
+else
+    msgbox('File Exporting Cancelled');
+end
+
+function BUTTON_LOCALISEALL_Callback(hObject, ~, handles)
+global rawdata localdata;
+try
+    nn=handles.VAL_NNPIXEL.Value;
+    znn=handles.VAL_ZNNPIXEL.Value;
+    %cidx=handles.SLIDER_C.Value;
+    nch=handles.SLIDER_C.Max;
+    %fidx=handles.SLIDER_F.Value;
+    nframe=handles.SLIDER_F.Max;
+    threshold=handles.VAL_THRESHOLD.Value;
+    subimgsize=[2*nn+1,2*nn+1,2*znn+1];
+    nx=numel(rawdata.x)-nn*2;
+    ny=numel(rawdata.y)-nn*2;
+    nz=numel(rawdata.z)-znn*2;
+    loopsize=nx*ny*nz;
+    xstart=1+nn;xstop=numel(rawdata.x)-nn;
+    ystart=1+nn;ystop=numel(rawdata.y)-nn;
+    zstart=1+znn;zstop=numel(rawdata.z)-znn;
+    [i,j,k]=ind2sub(subimgsize,1:prod(subimgsize));
+    i=i(:);j=j(:);k=k(:);
+    ds=[rawdata.dx,rawdata.dy,rawdata.dz];
+    hObject.String='Calculating';pause(0.1);
+    fprintf(1,'start...\n');
+    for fidx=1:1:nframe
+        for cidx=1:1:nch
+            local=zeros(loopsize,3);
+            intensity=zeros(loopsize,1);
+            chisq=zeros(loopsize,1);
+            localidx=1;
+            tempval=squeeze(rawdata.val(cidx,:,:,:,fidx));
+            tempval(tempval<threshold)=0;
+            for zpix=zstart:1:zstop
+                fprintf(1,'frame %g, channel %g, step %g/%g...\n',fidx,cidx,zpix-nn,nz);
+                zorg=rawdata.z(zpix-znn);
+                for xpix=xstart:1:xstop
+                    xorg=rawdata.x(xpix-nn);
+                    for ypix=ystart:1:ystop
+                        yorg=rawdata.y(ypix-nn);
+                        val=tempval(xpix-nn:xpix+nn,ypix-nn:ypix+nn,zpix-znn:zpix+znn);
+                        Imedian=median(val(:));%need to decide on this criteria
+                        if Imedian>0
+                            [intensity(localidx),local(localidx,1:3)]=roicentroid([i,j,k,val(:)],ds,[xorg,yorg,zorg]);
+                            chisq(localidx)=Imedian/mean(val(:));
+                        else
+                            local(localidx,1:3)=[nan,nan,nan];
+                            intensity(localidx)=0;
+                            chisq(localidx)=1;
+                        end
+                        localidx=localidx+1;
+                    end
+                end
+            end
+            % remove invalid points
+            invalid=(intensity==0);
+            local(invalid,:)=[];
+            intensity(invalid)=[];
+            chisq(invalid)=[];
+            %x,y,z,photon-count
+            localdata.val{cidx,fidx}=[local(:,[1,2,3]),intensity,chisq];
+        end
+    end
+    fprintf(1,'finished\n');
+    beep;beep;
+    hObject.String='Localise';
+    updateimage(handles);
+    msgbox(sprintf('Found %g localisation for Channel%g Frame%g.',numel(intensity),cidx,fidx),'Localisation Finished');
+catch exception
+    errordlg(exception.message,'Calculation Error','modal');
+end
+
+% --- Executes on button press in BUTTON_EXPORTALL.
+function BUTTON_EXPORTALL_Callback(~, ~, handles)
+global localdata;
+[pathname,filename,~]=fileparts(handles.FIGURE_IMG2LOC.Name);
+if isempty(pathname)
+    pathname=pwd;
+end
+filename=cat(2,filename,'_local');
+% ask for one file to open
+[filename,pathname,~] = uiputfile({'*.csv','Bruker export ascii file (*.csv)';...
+    '*.*','All Files (*.*)'},...
+    'Select Localisation ASCII File',cat(2,pathname,filesep,filename));
+if ischar(filename)
+    [~,fname,ext]=fileparts(filename);
+    for fidx=1:handles.SLIDER_F.Max;
+        fname=cat(2,pathname,fname,'_frame',num2str(fidx),ext);
+        threshold=handles.VAL_THRESHOLD.Value;
+        locsize=cellfun(@(x)size(x,1),localdata.val);
+        tabval=zeros(sum(locsize(:)),numel(localdata.colname));
+        nch=size(localdata.val,1);
+        startidx=1;
+        for cidx=1:nch
             if ~isempty(localdata.val{cidx,fidx})
                 endidx=size(localdata.val{cidx,fidx},1)+startidx-1;
                 tabval(startidx:endidx,strcmp(localdata.colname,'probe'))=cidx-1;
@@ -571,19 +700,19 @@ if ischar(filename)
                 tabval(startidx:endidx,strcmp(localdata.colname,'accuracy'))=ones(size(localdata.val{cidx,fidx},1),1)*15;
                 startidx=endidx+1;
             end
+        end
+        %csvwrite(filename,tabval);
+        fileID = fopen(filename,'w');
+        headerfmt=[repmat('%s,',1,numel(localdata.colname)-1),'%s\n'];
+        filefmt=[repmat('%0.6g,',1,numel(localdata.colname)-1),'%0.6g\n'];
+        fprintf(fileID,headerfmt,localdata.colname{:});
+        fprintf(fileID,filefmt,tabval');
+        fclose(fileID);
     end
-    %csvwrite(filename,tabval);
-    fileID = fopen(filename,'w');
-    headerfmt=[repmat('%s,',1,numel(localdata.colname)-1),'%s\n'];
-    filefmt=[repmat('%0.6g,',1,numel(localdata.colname)-1),'%0.6g\n'];
-    fprintf(fileID,headerfmt,localdata.colname{:});
-    fprintf(fileID,filefmt,tabval');
-    fclose(fileID);
-    msgbox('CSV file exported');
+    msgbox('CSV files exported');
 else
-    msgbox('File Loading Cancelled');
+    msgbox('File Exporting Cancelled');
 end
-
 %-------------------------------------------------------------------------
 % --- Executes when user attempts to close FIGURE_IMG2LOC.
 function FIGURE_IMG2LOC_CloseRequestFcn(hObject, ~, ~)
@@ -636,7 +765,7 @@ else
     end
 end
 
-function [coord]=roicentroid(val,dr,orig)
+function [Itotal,coord]=roicentroid(val,dr,orig)
 Itotal=sum(val(:,4));
 coord=sum(bsxfun(@times,val(:,1:3),val(:,4)),1)/Itotal.*dr+orig;
 
