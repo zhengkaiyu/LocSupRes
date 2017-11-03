@@ -17,6 +17,9 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# SyncToy files
+SyncToy_*.dat
+
 # =========================
 # Operating System Files
 # =========================

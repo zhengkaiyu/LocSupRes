@@ -431,27 +431,31 @@ info=handles.TABLE_CLUSTERINFO.Data;
 info=sortrows(info,hObject.Value);%sort by volume
 handles.TABLE_CLUSTERINFO.Data=info;
 
-
 % --- Executes on button press in BUTTON_STORECLUSTER.
 function BUTTON_STORECLUSTER_Callback(~, ~, handles)
 %save selected cluster centroid position so one could track them over files
 global DATA;
 probeidx=handles.MENU_PROBE.Value;
 selectedrow=handles.TABLE_CLUSTERINFO.UserData;
-clusterindex=handles.TABLE_CLUSTERINFO.Data(:,1);
-storedcluster.shape={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).shape};
-storedcluster.centroid={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).centroid};
-storedcluster.centroid_synapse={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).centroid_synapse};
-if isfield(DATA.probe(probeidx).cluster(clusterindex(selectedrow(1))),'nnc0_id')
-    storedcluster.nnc0_id={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).nnc0_id};
+if isempty(selectedrow)
+    errordlg('No cluster selected in the current probe','Cluster find','modal');
+else
+    clusterindex=handles.TABLE_CLUSTERINFO.Data(:,1);
+    storedcluster.index=num2cell(clusterindex(selectedrow));
+    storedcluster.shape={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).shape};
+    storedcluster.centroid={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).centroid};
+    storedcluster.centroid_synapse={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).centroid_synapse};
+    if isfield(DATA.probe(probeidx).cluster(clusterindex(selectedrow(1))),'nnc0_id')
+        storedcluster.nnc0_id={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).nnc0_id};
+    end
+    if isfield(DATA.probe(probeidx).cluster(clusterindex(selectedrow(1))),'nnc1_id')
+        storedcluster.nnc1_id={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).nnc1_id}; %#ok<STRNU>
+    end
+    filename=cat(2,pwd,filesep,'storedcluster.mat');
+    version='7.3';
+    save(filename,'storedcluster','-mat',cat(2,'-v',version));
+    msgbox(cat(2,'Cluster: ',sprintf('%d, ',clusterindex(selectedrow)),' stored.'),'Save File','modal');
 end
-if isfield(DATA.probe(probeidx).cluster(clusterindex(selectedrow(1))),'nnc1_id')
-    storedcluster.nnc1_id={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).nnc1_id}; %#ok<STRNU>
-end
-filename=cat(2,pwd,filesep,'storedcluster.mat');
-version='7.3';
-save(filename,'storedcluster','-mat',cat(2,'-v',version));
-msgbox(sprintf('%s stored in ver %s\n',filename,version),'Save File','modal');
 
 % --- Executes on button press in BUTTON_FINDCLUSTER.
 function BUTTON_FINDCLUSTER_Callback(~, ~, handles)
@@ -460,19 +464,30 @@ global DATA;
 filename=cat(2,pwd,filesep,'storedcluster.mat');
 temp=load(filename,'-mat');
 storedcluster=temp.storedcluster;
-% find clusters
-current_centroid=cell2mat({DATA.probe(1).cluster.centroid}');
-nstoredcluster=numel(storedcluster.centroid);
-current_clusteridx=zeros(nstoredcluster,1);
-rowidx=zeros(nstoredcluster,1);
-tableidx=handles.TABLE_CLUSTERINFO.Data(:,1);
-for clusteridx=1:nstoredcluster
-    % find closes cluster to stored cluster location
-    [~,current_clusteridx(clusteridx)]=min(sum(bsxfun(@minus,current_centroid, storedcluster.centroid{clusteridx}).^2,2));
-    rowidx(clusteridx)=find(tableidx==current_clusteridx(clusteridx));
+if isempty(DATA.probe(1).cluster)
+    errordlg('No cluster in the current probe','Cluster find','modal');
+else
+    % find clusters
+    current_centroid=cell2mat({DATA.probe(1).cluster.centroid}');
+    nstoredcluster=numel(storedcluster.centroid);
+    current_clusteridx=zeros(nstoredcluster,1);
+    rowidx=zeros(nstoredcluster,1);
+    tableidx=handles.TABLE_CLUSTERINFO.Data(:,1);
+    for clusteridx=1:nstoredcluster
+        % find closes cluster to stored cluster location
+        [~,current_clusteridx(clusteridx)]=min(sum(bsxfun(@minus,current_centroid, storedcluster.centroid{clusteridx}).^2,2));
+        rowidx(clusteridx)=find(tableidx==current_clusteridx(clusteridx));
+    end
+    handles.TABLE_CLUSTERINFO.UserData=rowidx;
+    %matchidx=[storedcluster.index';num2cell(current_clusteridx)'];
+    %msgbox(cat(2,'Most likely cluster pair found are: ',sprintf('\n%5d -> %5d',matchidx{:})),'locate stored cluster');
+    matchidx=cellfun(@(x,y)sprintf('%5d ---> %5d',x,y),storedcluster.index,num2cell(current_clusteridx),'UniformOutput',false);
+    set(0,'DefaultUicontrolBackgroundColor',[0.3,0.3,0.3]);
+    set(0,'DefaultUicontrolForegroundColor','k');
+    hfig=figure('NumberTitle','off','Name','Locate Stored Cluster','MenuBar','none','Toolbar','none','Position',[10,10,200,500],'Color','k','Resize','off');
+    hlist=uicontrol(hfig,'Style','listbox','String',matchidx,'Position',[10,10,180,480],'BackgroundColor','k','ForegroundColor','w','Enable','on','Max',2);
+    hlist.Value=[];
 end
-handles.TABLE_CLUSTERINFO.UserData=rowidx;
-msgbox(cat(2,'Most likely cluster found are: ',sprintf('%d, ',current_clusteridx)),'locate stored cluster','modal');
 
 % --- Executes on button press in BUTTON_MERGECLUSTER.
 function BUTTON_MERGECLUSTER_Callback(hObject, eventdata, handles)
@@ -886,7 +901,7 @@ fh=figure('Name',sprintf('Parameter Distribution for %s',DATA.datainfo.(cat(2,'p
     'MenuBar','none',...
     'ToolBar','figure',...
     'Position',[0,0,900,600],...
-    'Keypressfcn',@figure_keypress);
+    'Keypressfcn',@figure_keypress); %#ok<NASGU>
 invalid_accum=DATA.dataval(probe,DATA.datainfo.accumcol)>DATA.datainfo.accum_threshold;%accumulation
 subplot(2,4,1);
 histogram(DATA.dataval(probe,DATA.datainfo.accumcol),linspace(0,5,10));
@@ -1555,7 +1570,6 @@ try
                 normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
                 [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
                 view(sph,[rad2deg(az),rad2deg(el)]);
-            end
             %{
             transl=eye(4);%transl(4,1:3)=-synapse_centre;
             az=-az;el=-el;
@@ -1579,9 +1593,10 @@ try
             plot3(x4,y4,z4,'.','Color',DATA.datainfo.probe_colours(4));
             ax=gca;axis(ax,'equal');xlabel(ax,'X');ylabel(ax,'Y');zlabel(ax,'Z');
             %}
+            end
             %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
-        msgbox(sprintf('cluster %d synapse nearest neighbour site search successfully analysed.\n',selected_cluster),'Cluster Analysis','modal');
+        msgbox(sprintf('cluster %s synapse nearest neighbour site search successfully analysed.\n',sprintf('%d, ',selected_cluster)),'Cluster Analysis','modal');
     else
         errordlg(sprintf('synapse nearest site analysis cancelled\n'));
     end
