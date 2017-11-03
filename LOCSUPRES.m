@@ -22,7 +22,7 @@ function varargout = LOCSUPRES(varargin)
 
 % Edit the above text to modify the response to help LOCSUPRES
 
-% Last Modified by GUIDE v2.5 16-Oct-2017 14:21:18
+% Last Modified by GUIDE v2.5 02-Nov-2017 18:18:42
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -430,6 +430,55 @@ function MENU_SORTCLUSTERTABLE_Callback(hObject, ~, handles)
 info=handles.TABLE_CLUSTERINFO.Data;
 info=sortrows(info,hObject.Value);%sort by volume
 handles.TABLE_CLUSTERINFO.Data=info;
+
+
+% --- Executes on button press in BUTTON_STORECLUSTER.
+function BUTTON_STORECLUSTER_Callback(~, ~, handles)
+%save selected cluster centroid position so one could track them over files
+global DATA;
+probeidx=handles.MENU_PROBE.Value;
+selectedrow=handles.TABLE_CLUSTERINFO.UserData;
+clusterindex=handles.TABLE_CLUSTERINFO.Data(:,1);
+storedcluster.shape={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).shape};
+storedcluster.centroid={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).centroid};
+storedcluster.centroid_synapse={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).centroid_synapse};
+if isfield(DATA.probe(probeidx).cluster(clusterindex(selectedrow(1))),'nnc0_id')
+    storedcluster.nnc0_id={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).nnc0_id};
+end
+if isfield(DATA.probe(probeidx).cluster(clusterindex(selectedrow(1))),'nnc1_id')
+    storedcluster.nnc1_id={DATA.probe(probeidx).cluster(clusterindex(selectedrow)).nnc1_id}; %#ok<STRNU>
+end
+filename=cat(2,pwd,filesep,'storedcluster.mat');
+version='7.3';
+save(filename,'storedcluster','-mat',cat(2,'-v',version));
+msgbox(sprintf('%s stored in ver %s\n',filename,version),'Save File','modal');
+
+% --- Executes on button press in BUTTON_FINDCLUSTER.
+function BUTTON_FINDCLUSTER_Callback(~, ~, handles)
+%load stored cluster and locate current cluster in the same locality
+global DATA;
+filename=cat(2,pwd,filesep,'storedcluster.mat');
+temp=load(filename,'-mat');
+storedcluster=temp.storedcluster;
+% find clusters
+current_centroid=cell2mat({DATA.probe(1).cluster.centroid}');
+nstoredcluster=numel(storedcluster.centroid);
+current_clusteridx=zeros(nstoredcluster,1);
+rowidx=zeros(nstoredcluster,1);
+tableidx=handles.TABLE_CLUSTERINFO.Data(:,1);
+for clusteridx=1:nstoredcluster
+    % find closes cluster to stored cluster location
+    [~,current_clusteridx(clusteridx)]=min(sum(bsxfun(@minus,current_centroid, storedcluster.centroid{clusteridx}).^2,2));
+    rowidx(clusteridx)=find(tableidx==current_clusteridx(clusteridx));
+end
+handles.TABLE_CLUSTERINFO.UserData=rowidx;
+msgbox(cat(2,'Most likely cluster found are: ',sprintf('%d, ',current_clusteridx)),'locate stored cluster','modal');
+
+% --- Executes on button press in BUTTON_MERGECLUSTER.
+function BUTTON_MERGECLUSTER_Callback(hObject, eventdata, handles)
+% hObject    handle to BUTTON_MERGECLUSTER (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
 % --- Executes when user attempts to close LOCSUPRES.
 function LOCSUPRES_CloseRequestFcn(hObject, ~, ~)
@@ -1502,9 +1551,11 @@ try
             sph.YGrid='on';ylabel(sph,'Y');
             sph.ZGrid='on';zlabel(sph,'Z');
             axis(sph,'equal');
-            normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
-            [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
-            view(sph,[rad2deg(az),rad2deg(el)]);
+            if isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),'view')
+                normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
+                [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
+                view(sph,[rad2deg(az),rad2deg(el)]);
+            end
             %{
             transl=eye(4);%transl(4,1:3)=-synapse_centre;
             az=-az;el=-el;
