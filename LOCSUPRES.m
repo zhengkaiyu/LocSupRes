@@ -1473,7 +1473,7 @@ try
                 'Position',[0,0,900,600],...
                 'Color',[0.5,0.5,0.5],...
                 'Keypressfcn',@figure_keypress);
-            sph=subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);hold all;
+            sph=subplot(2,numel(s)*3,[(numel(s)*2+1):numel(s)*3,(numel(s)*5+1):2*(numel(s)*3)],'Parent',fh);hold all;
             sph.Tag='synapse_cluster';
             plot3(handles.PANEL_CLUSTER,currentsynapse(clusterid,1),currentsynapse(clusterid,2),currentsynapse(clusterid,3),...
                 'LineStyle','none','LineWidth',4,...
@@ -1501,10 +1501,10 @@ try
                             checkcluster=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(fname);
                         end
                     end
-                    
                     if isfield(DATA.probe(s(probeidx)).cluster(checkcluster),'shape')
                         d_len_shape=bsxfun(@minus,DATA.probe(s(probeidx)).cluster(checkcluster).shape.Points,currentsynapse(clusterid,:));
                         [az_shape,el_shape,rad_shape]=cart2sph(d_len_shape(:,1),d_len_shape(:,2),d_len_shape(:,3));
+                        az_shape=rad2deg(az_shape);el_shape=rad2deg(el_shape);
                         V_cluster=DATA.probe(s(probeidx)).cluster(checkcluster).volume;
                         vf_shape=V_cluster/(4/3*pi*prox_dist^3);
                         rou_shape=size(DATA.probe(s(probeidx)).cluster(checkcluster).shape.Points,1)/V_cluster;
@@ -1527,13 +1527,14 @@ try
                     A_surf_max=surfaceArea(temp);
                 end
                 DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))))=temp;
-                subplot(2,numel(s)+2,probeidx,'Parent',fh);
+                subplot(2,numel(s)*3,(probeidx-1)*2+1,'Parent',fh);
                 histogram2(az,el,-180:10:180,-90:10:90,'FaceColor','flat','DisplayStyle','tile','EdgeColor','none');
-                view([0,90]);axis('equal');
-                xlabel('az (^o)','FontSize',8);
-                ylabel('el (^o)','FontSize',8);
+                view([0,90]);axis('equal');xlabel('az (^o)','FontSize',8);ylabel('el (^o)','FontSize',8);
                 title(sprintf('Probe %s',probe_list{probeidx}),'Color',DATA.datainfo.probe_colours(s(probeidx)));
-                subplot(2,numel(s)+2,probeidx+numel(s)+2,'Parent',fh);
+                subplot(2,numel(s)*3,(probeidx-1)*2+2,'Parent',fh);
+                histogram2(az_shape,el_shape,-180:10:180,-90:10:90,'FaceColor','flat','DisplayStyle','tile','EdgeColor','none');
+                view([0,90]);axis('equal');xlabel('az (^o)','FontSize',8);ylabel('el (^o)','FontSize',8);
+                subplot(2,numel(s)*3,numel(s)*3+(probeidx-1)*2+1,'Parent',fh);
                 histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
                 title({'parameter = point|shape';...
@@ -1544,12 +1545,15 @@ try
                     cat(2,'\rho = ',sprintf('%4.2f | %4.2f',rou_max,rou_shape),'\mum^{-3}');...
                     cat(2,'A_{surface} = ',sprintf('%4.2f | %4.2f',A_surf_max,A_surf_shape),'\mum^2')},...
                     'Interpreter','tex');
+                subplot(2,numel(s)*3,numel(s)*3+(probeidx-1)*2+2,'Parent',fh);
+                histogram(rad_shape,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
+                xlabel('r (\mum)','FontSize',8);
                 % export raw angle and distance data
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
                 fid=fopen(filename,'w');
                 fprintf(fid,'%4.4g,%4.4g,%4.4g\n',[az';el';rad']);
                 fclose(fid);
-                subplot(2,numel(s)+2,[numel(s)+1,numel(s)+2,2*(numel(s)+1)+1,2*(numel(s)+1)+2],'Parent',fh);
+                subplot(2,numel(s)*3,[(numel(s)*2+1):numel(s)*3,(numel(s)*5+1):2*(numel(s)*3)],'Parent',fh);
                 if isfield(DATA.probe(s(probeidx)).cluster,'shape')
                     % has cluster defined
                     if s(probeidx)==currentprobe
