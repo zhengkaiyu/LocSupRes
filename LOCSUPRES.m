@@ -1488,17 +1488,29 @@ try
                 rad=rad(proximity);
                 az=rad2deg(az(proximity));el=rad2deg(el(proximity));
                 %viewaz(probeidx)=mean(az);viewel(probeidx)=mean(el);
+                if isempty(DATA.probe(s(probeidx)).cluster)
+                    vf_shape=0;rou_shape=0;A_surf_shape=0;
+                else
+                    if isfield(DATA.probe(s(probeidx)).cluster(selected_cluster(clusterid)),'shape')
+                        V_cluster=DATA.probe(s(probeidx)).cluster(selected_cluster(clusterid)).volume;
+                        vf_shape=V_cluster/(4/3*pi*prox_dist^3);
+                        rou_shape=size(DATA.probe(s(probeidx)).cluster(selected_cluster(clusterid)).shape.Points,1)/V_cluster;
+                        A_surf_shape=DATA.probe(s(probeidx)).cluster(selected_cluster(clusterid)).area;
+                    else
+                        vf_shape=0;rou_shape=0;A_surf_shape=0;
+                    end
+                end
                 %calculate volume information
                 temp=alphaShape(d_len(proximity,1:3),Inf,'HoleThreshold',0,'RegionThreshold',0);
                 pc=criticalAlpha(temp,'one-region');
                 if isempty(pc)
-                    vf=0;rou=0;surfarea=0;
+                    vf_max=0;rou_max=0;A_surf_max=0;
                 else
                     temp.Alpha=pc;
-                    V_cluster=volume(temp);
-                    vf=V_cluster/(4/3*pi*prox_dist^3);
-                    rou=numel(rad)/V_cluster;
-                    surfarea=surfaceArea(temp);
+                    V_cluster_max=volume(temp);
+                    vf_max=V_cluster_max/(4/3*pi*prox_dist^3);
+                    rou_max=numel(rad)/V_cluster_max;
+                    A_surf_max=surfaceArea(temp);
                 end
                 DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).synapse.(cat(2,'probe',num2str(s(probeidx))))=temp;
                 subplot(2,numel(s)+2,probeidx,'Parent',fh);
@@ -1513,9 +1525,12 @@ try
                 title({cat(2,'r_{min} = ',sprintf('%4.3f',min(rad)),'\mum');...
                     cat(2,'r_{mean} = ',sprintf('%4.3f',mean(rad)),'\mum');...
                     cat(2,'r_{median} = ',sprintf('%4.3f',median(rad)),'\mum');...
-                    cat(2,'V_f = ',sprintf('%4.2f',vf*100),'%');...
-                    cat(2,'\rho = ',sprintf('%4.2f',rou),'\mum^{-3}');...
-                    cat(2,'A_{surface} = ',sprintf('%4.2f',surfarea),'\mum^2')},...
+                    cat(2,'V_f = ',sprintf('%4.2f',vf_max*100),'%');...
+                    cat(2,'V_f^{shape} = ',sprintf('%4.2f',vf_shape*100),'%');...
+                    cat(2,'\rho = ',sprintf('%4.2f',rou_max),'\mum^{-3}');...
+                    cat(2,'\rho_{shape} = ',sprintf('%4.2f',rou_shape),'\mum^{-3}');...
+                    cat(2,'A_{surface} = ',sprintf('%4.2f',A_surf_max),'\mum^2');...
+                    cat(2,'A_{surface}^{shape} = ',sprintf('%4.2f',A_surf_shape),'\mum^2')},...
                     'Interpreter','tex');
                 % export raw angle and distance data
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
@@ -1570,7 +1585,7 @@ try
                 normvec=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view;
                 [az,el,~]=cart2sph(normvec(1),normvec(2),normvec(3));
                 view(sph,[rad2deg(az),rad2deg(el)]);
-            %{
+                %{
             transl=eye(4);%transl(4,1:3)=-synapse_centre;
             az=-az;el=-el;
             rotz=[cos(az),sin(az),0,0;...
@@ -1592,7 +1607,7 @@ try
             plot3(x3,y3,z3,'.','Color',DATA.datainfo.probe_colours(3));
             plot3(x4,y4,z4,'.','Color',DATA.datainfo.probe_colours(4));
             ax=gca;axis(ax,'equal');xlabel(ax,'X');ylabel(ax,'Y');zlabel(ax,'Z');
-            %}
+                %}
             end
             %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end

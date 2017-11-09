@@ -522,7 +522,7 @@ try
     localdata.val{cidx,fidx}=[local(:,[1,2,3]),intensity,chisq];
     fprintf(1,'finished\n');
     beep;beep;
-    hObject.String='Localise';
+    hObject.String='Localise Frame';
     updateimage(handles);
     msgbox(sprintf('Found %g localisation for Channel%g Frame%g.',numel(intensity),cidx,fidx),'Localisation Finished');
 catch exception
@@ -600,6 +600,7 @@ try
     nframe=handles.SLIDER_F.Max;
     threshold=handles.VAL_THRESHOLD.Value;
     subimgsize=[2*nn+1,2*nn+1,2*znn+1];
+    nvoxel=prod(subimgsize);
     nx=numel(rawdata.x)-nn*2;
     ny=numel(rawdata.y)-nn*2;
     nz=numel(rawdata.z)-znn*2;
@@ -607,7 +608,7 @@ try
     xstart=1+nn;xstop=numel(rawdata.x)-nn;
     ystart=1+nn;ystop=numel(rawdata.y)-nn;
     zstart=1+znn;zstop=numel(rawdata.z)-znn;
-    [i,j,k]=ind2sub(subimgsize,1:prod(subimgsize));
+    [i,j,k]=ind2sub(subimgsize,1:nvoxel);
     i=i(:);j=j(:);k=k(:);
     ds=[rawdata.dx,rawdata.dy,rawdata.dz];
     hObject.String='Calculating';pause(0.1);
@@ -631,7 +632,7 @@ try
                         Imedian=median(val(:));%need to decide on this criteria
                         if Imedian>0
                             [intensity(localidx),local(localidx,1:3)]=roicentroid([i,j,k,val(:)],ds,[xorg,yorg,zorg]);
-                            chisq(localidx)=Imedian/mean(val(:));
+                            chisq(localidx)=Imedian/(intensity(localidx)/nvoxel);
                         else
                             local(localidx,1:3)=[nan,nan,nan];
                             intensity(localidx)=0;
@@ -652,7 +653,7 @@ try
     end
     fprintf(1,'finished\n');
     beep;beep;
-    hObject.String='Localise';
+    hObject.String='Localise ALL';
     updateimage(handles);
     msgbox(sprintf('Found %g localisation for Channel%g Frame%g.',numel(intensity),cidx,fidx),'Localisation Finished');
 catch exception
@@ -672,12 +673,12 @@ filename=cat(2,filename,'_local');
     '*.*','All Files (*.*)'},...
     'Select Localisation ASCII File',cat(2,pathname,filesep,filename));
 if ischar(filename)
-    [~,fname,ext]=fileparts(filename);
-    for fidx=1:handles.SLIDER_F.Max;
+    for fidx=1:size(localdata.val,2)
+        [~,fname,ext]=fileparts(filename);
         fname=cat(2,pathname,fname,'_frame',num2str(fidx),ext);
         threshold=handles.VAL_THRESHOLD.Value;
         locsize=cellfun(@(x)size(x,1),localdata.val);
-        tabval=zeros(sum(locsize(:)),numel(localdata.colname));
+        tabval=zeros(sum(locsize(:,fidx)),numel(localdata.colname));
         nch=size(localdata.val,1);
         startidx=1;
         for cidx=1:nch
@@ -702,9 +703,9 @@ if ischar(filename)
             end
         end
         %csvwrite(filename,tabval);
-        fileID = fopen(filename,'w');
         headerfmt=[repmat('%s,',1,numel(localdata.colname)-1),'%s\n'];
         filefmt=[repmat('%0.6g,',1,numel(localdata.colname)-1),'%0.6g\n'];
+        fileID = fopen(fname,'w');
         fprintf(fileID,headerfmt,localdata.colname{:});
         fprintf(fileID,filefmt,tabval');
         fclose(fileID);
