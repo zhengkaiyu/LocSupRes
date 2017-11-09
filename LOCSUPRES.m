@@ -1492,16 +1492,17 @@ try
                     vf_shape=0;rou_shape=0;A_surf_shape=0;
                     az_shape=[];el_shape=[];rad_shape=nan;
                 else
-                    if isfield(DATA.probe(s(probeidx)).cluster(selected_cluster(clusterid)),'shape')
-                        if s(probeidx)==currentprobe
-                            %selected probe
-                            checkcluster=selected_cluster(clusterid);
-                        else
-                            fname=cat(2,'nnc',num2str(s(probeidx)-1),'_id');
-                            if isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),fname)
-                                checkcluster=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(fname);
-                            end
+                    if s(probeidx)==currentprobe
+                        %selected probe
+                        checkcluster=selected_cluster(clusterid);
+                    else
+                        fname=cat(2,'nnc',num2str(s(probeidx)-1),'_id');
+                        if isfield(DATA.probe(currentprobe).cluster(selected_cluster(clusterid)),fname)
+                            checkcluster=DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(fname);
                         end
+                    end
+                    
+                    if isfield(DATA.probe(s(probeidx)).cluster(checkcluster),'shape')
                         d_len_shape=bsxfun(@minus,DATA.probe(s(probeidx)).cluster(checkcluster).shape.Points,currentsynapse(clusterid,:));
                         [az_shape,el_shape,rad_shape]=cart2sph(d_len_shape(:,1),d_len_shape(:,2),d_len_shape(:,3));
                         V_cluster=DATA.probe(s(probeidx)).cluster(checkcluster).volume;
@@ -1536,12 +1537,12 @@ try
                 histogram(rad,linspace(0,prox_dist,25),'FaceColor',DATA.datainfo.probe_colours(s(probeidx)));
                 xlabel('r (\mum)','FontSize',8);
                 title({'parameter = point|shape';...
-                    cat(2,'r_{min} = ',sprintf('%4.3f|%4.3f',min(rad),min(rad_shape)),'\mum');...
-                    cat(2,'r_{mean} = ',sprintf('%4.3f|%4.3f',mean(rad),mean(rad_shape)),'\mum');...
-                    cat(2,'r_{median} = ',sprintf('%4.3f|%4.3f',median(rad),median(rad_shape)),'\mum');...
-                    cat(2,'V_f = ',sprintf('%4.2f|%4.2f',vf_max*100,vf_shape*100),'%');...
-                    cat(2,'\rho = ',sprintf('%4.2f|%4.2f',rou_max,rou_shape),'\mum^{-3}');...
-                    cat(2,'A_{surface} = ',sprintf('%4.2f|%4.2f',A_surf_max,A_surf_shape),'\mum^2')},...
+                    cat(2,'r_{min} = ',sprintf('%4.3f | %4.3f',min(rad),min(rad_shape)),'\mum');...
+                    cat(2,'r_{mean} = ',sprintf('%4.3f | %4.3f',mean(rad),mean(rad_shape)),'\mum');...
+                    cat(2,'r_{median} = ',sprintf('%4.3f | %4.3f',median(rad),median(rad_shape)),'\mum');...
+                    cat(2,'V_f = ',sprintf('%4.2f | %4.2f',vf_max*100,vf_shape*100),'%');...
+                    cat(2,'\rho = ',sprintf('%4.2f | %4.2f',rou_max,rou_shape),'\mum^{-3}');...
+                    cat(2,'A_{surface} = ',sprintf('%4.2f | %4.2f',A_surf_max,A_surf_shape),'\mum^2')},...
                     'Interpreter','tex');
                 % export raw angle and distance data
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
