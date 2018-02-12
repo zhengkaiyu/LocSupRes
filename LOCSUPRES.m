@@ -777,6 +777,15 @@ if n_cluster>0
             case {'nns0_id','nns1_id','nns2_id','nns3_id','nns0_dist','nns1_dist','nns2_dist','nns3_dist'}
                 info(:,colidx)=[DATA.probe(probeidx).cluster.(colname{fidx})]';
                 colidx=colidx+1;
+            case {'nns0_pt_rmin','nns0_pt_rmean','nns0_pt_rmedian','nns0_pt_Vf','nns0_pt_density','nns0_pt_Asurf',...
+                    'nns1_pt_rmin','nns1_pt_rmean','nns1_pt_rmedian','nns1_pt_Vf','nns1_pt_density','nns1_pt_Asurf',...
+                    'nns2_pt_rmin','nns2_pt_rmean','nns2_pt_rmedian','nns2_pt_Vf','nns2_pt_density','nns2_pt_Asurf',...
+                    'nns0_sh_rmin','nns0_sh_rmean','nns0_sh_rmedian','nns0_sh_Vf','nns0_sh_density','nns0_sh_Asurf',...
+                    'nns1_sh_rmin','nns1_sh_rmean','nns1_sh_rmedian','nns1_sh_Vf','nns1_sh_density','nns1_sh_Asurf',...
+                    'nns2_sh_rmin','nns2_sh_rmean','nns2_sh_rmedian','nns2_sh_Vf','nns2_sh_density','nns2_sh_Asurf'}
+                marker=cell2mat(cellfun(@(x)~isempty(x),{DATA.probe(probeidx).cluster.(colname{fidx})},'UniformOutput',false));
+                info(marker,colidx)=[DATA.probe(probeidx).cluster.(colname{fidx})]';
+                colidx=colidx+1;
             case 'centroid_synapse'
                 info(:,colidx:colidx+2)=cell2mat({DATA.probe(probeidx).cluster.centroid_synapse}');
                 colidx=colidx+3;
@@ -1545,6 +1554,12 @@ try
                     cat(2,'\rho = ',sprintf('%4.0f',rou_max),'\mum^{-3}');...
                     cat(2,'A_{surf} = ',sprintf('%4.2f',A_surf_max),'\mum^2')},...
                     'Interpreter','tex');
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_pt_rmin'))=min(rad);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_pt_rmean'))=mean(rad);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_pt_rmedian'))=median(rad);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_pt_Vf'))=vf_max*100;
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_pt_density'))=rou_max;
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_pt_Asurf'))=A_surf_max;
                 %{
                 title({'parameter = point|shape';...
                     cat(2,'r_{min} = ',sprintf('%4.3f | %4.3f',min(rad),min(rad_shape)),'\mum');...
@@ -1565,6 +1580,12 @@ try
                     cat(2,'\rho = ',sprintf('%4.0f',rou_shape),'\mum^{-3}');...
                     cat(2,'A_{surf} = ',sprintf('%4.2f',A_surf_shape),'\mum^2')},...
                     'Interpreter','tex');
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_sh_rmin'))=min(rad_shape);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_sh_rmean'))=mean(rad_shape);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_sh_rmedian'))=median(rad_shape);
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_sh_Vf'))=vf_shape*100;
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_sh_density'))=rou_shape;
+                DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).(cat(2,'nns',num2str(s(probeidx)-1),'_sh_Asurf'))=A_surf_shape;
                 % export raw angle and distance data
                 filename=sprintf('%s%scluster%d_%s.dat',pathname,filesep,selected_cluster(clusterid),probe_list{probeidx});
                 fid=fopen(filename,'w');
@@ -1656,6 +1677,8 @@ try
             end
             %view(sph,DATA.probe(currentprobe).cluster(selected_cluster(clusterid)).view);
         end
+        % update cluster info table
+        display_clusterinfo(currentprobe,handles);
         msgbox(sprintf('cluster %s synapse nearest neighbour site search successfully analysed.\n',sprintf('%d, ',selected_cluster)),'Cluster Analysis','modal');
     else
         errordlg(sprintf('synapse nearest site analysis cancelled\n'));
