@@ -890,6 +890,65 @@ switch eventkey.Key
                         hplot.Children(str2double(eventkey.Key(2))).Visible='off';
                 end
         end
+    case {'home','end','pagedown','pageup'}
+        hplot=gcf;
+        switch hplot.Tag
+            case 'Synapse_tot'
+                dr=hplot.UserData;
+                switch eventkey.Key
+                    case 'home'
+                        dr=0.005;
+                    case 'end'
+                        dr=0.5;
+                    case 'pageup'
+                        dr=max(dr-0.005,0.005);
+                    case 'pagedown'
+                        dr=min(dr+0.005,0.5);
+                end
+                hplot.UserData=dr;
+                subplot(2,2,1);
+                temp=gca;
+                rz3_tot=[temp.Children(1).XData(:),temp.Children(1).YData(:)];
+                rz2_tot=[temp.Children(2).XData(:),temp.Children(2).YData(:)];
+                rz1_tot=[temp.Children(3).XData(:),temp.Children(3).YData(:)];
+                scalemin=min([min(rz1_tot,[],1);min(rz2_tot,[],1);min(rz3_tot,[],1)],[],1);
+                scalemax=max([max(rz1_tot,[],1);max(rz2_tot,[],1);max(rz3_tot,[],1)],[],1);
+                dz=dr;
+                [rz1_ch,~]=hist3(rz1_tot,{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                [rz2_ch,~]=hist3(rz2_tot,{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                [rz3_ch,~]=hist3(rz3_tot,{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                rgbimg=cat(3,rz2_ch./max(rz2_ch(:)),rz1_ch./max(rz1_ch(:)),rz3_ch./max(rz3_ch(:)));
+                subplot(2,2,3);
+                himage=get(gca,'Children');
+                set(himage,'CData',imrotate(rgbimg,90));axis tight;
+                set(himage,'UserData',dr);
+                title(sprintf('dr=%g',dr));
+                subplot(2,2,2);
+                [n1,e1]=histcounts(rz1_tot(:,1),min(rz1_tot(:,1)):dr:max(rz1_tot(:,1)));
+                e1=e1(1:end-1)+dr/2;
+                [n2,e2]=histcounts(rz2_tot(:,1),min(rz2_tot(:,1)):dr:max(rz2_tot(:,1)));
+                e2=e2(1:end-1)+dr/2;
+                [n3,e3]=histcounts(rz3_tot(:,1),min(rz3_tot(:,1)):dr:max(rz3_tot(:,1)));
+                e3=e3(1:end-1)+dr/2;
+                lineplot=get(gca);
+                set(lineplot.Children(1),'XData',e3,'YData',n3);
+                set(lineplot.Children(2),'XData',e2,'YData',n2);
+                set(lineplot.Children(3),'XData',e1,'YData',n1);
+                subplot(2,2,4);
+                rzdist=sqrt(sum(rz1_tot.^2,2)).*sign(rz1_tot(:,1));
+                [n1,e1]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                e1=e1(1:end-1)+dr/2;
+                rzdist=sqrt(sum(rz2_tot.^2,2)).*sign(rz2_tot(:,1));
+                [n2,e2]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                e2=e2(1:end-1)+dr/2;
+                rzdist=sqrt(sum(rz3_tot.^2,2)).*sign(rz3_tot(:,1));
+                [n3,e3]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                e3=e3(1:end-1)+dr/2;
+                lineplot=get(gca);
+                set(lineplot.Children(1),'XData',e3,'YData',n3);
+                set(lineplot.Children(2),'XData',e2,'YData',n2);
+                set(lineplot.Children(3),'XData',e1,'YData',n1);
+        end
     case {'f11'}
         % link axes
         hplot=gca;
@@ -1998,12 +2057,13 @@ try
                 set(0,'DefaultUicontrolForegroundColor','k');
                 options.Interpreter = 'tex';
                 options.WindowStyle = 'modal';
-                answer = inputdlg('Enter analysis sphere radius (\mum)[default use max(localdist)]:',...
-                    'Synapse sphere radius', 1,{num2str(prox_dist)},options);
+                answer = inputdlg({'Enter analysis sphere radius (\mum)[default use max(localdist)]:','Enter analysis PSD radius (\mum)[default use max(localdist)]:'},...
+                    'Synapse sphere radius', 1,{num2str(prox_dist),num2str(prox_dist/3)},options);
                 set(0,'DefaultUicontrolBackgroundColor','k');
                 set(0,'DefaultUicontrolForegroundColor','w');
                 if ~isempty(prox_dist)
-                    prox_dist=max(str2double(answer),0.1);
+                    prox_dist=max(str2double(answer{1}),0.1);
+                    synapse_prox=max(str2double(answer{2}),0.1);
                 end
                 for clusterid=1:n_cluster
                     fh=figure('Name',sprintf('Nearest Probe Site Distance to cluster%g synapse',selected_cluster(clusterid)),...
@@ -2036,69 +2096,98 @@ try
                         %points to 3D plane distance function
                         qp1=ocluster.Points;%q point set1 from other cluster
                         qp2=scluster.Points;%q point sets from selected cluster
+                        %filter out points that are not close enough to the
+                        %synpase
+                        qp1=qp1(sqrt(sum(bsxfun(@minus,qp1,synaptic_centroid).^2,2))<=synapse_prox,:);
+                        qp2=qp2(sqrt(sum(bsxfun(@minus,qp2,synaptic_centroid).^2,2))<=synapse_prox,:);
                         %distance function for both set of clusters
                         odistfunc=@(plane)sum(bsxfun(@times,bsxfun(@minus,plane(1,:),qp1),plane(2,:)),2);%dot((P-Q),pnorm))plane=[P;pnorm]
                         sdistfunc=@(plane)sum(bsxfun(@times,bsxfun(@minus,plane(1,:),qp2),plane(2,:)),2);%dot((P-Q),pnorm))plane=[P;pnorm]
                         %combined distance function as a binary function
-                        distfunc=@(plane)sum((odistfunc(plane)>0).*abs(odistfunc(plane)))+sum((sdistfunc(plane)<0).*abs(sdistfunc(plane)));
+                        %distfunc=@(plane)sum((odistfunc(plane)>0).*abs(odistfunc(plane)))/numel(qp1)+sum((sdistfunc(plane)<0).*abs(sdistfunc(plane)))/numel(qp2);
+                        distfunc=@(plane)sum((odistfunc(plane)>0))/numel(qp1)+sum((sdistfunc(plane)<0))/numel(qp2);
                         %fminsearch for optimal separation plane
-                        [x,fval,exitflag]=fminsearch(distfunc,init_plane,optimset('TolX',1e-8,'MaxFunEvals',1e5));
+                        [x,fval,exitflag]=fminsearch(distfunc,init_plane,optimset('TolX',1e-6,'MaxFunEvals',1e6));
                         if exitflag
-                            pmidpt_synapse=x(1,:);
                             pnorm_synapse=x(2,:)/norm(x(2,:));
+                            %use intersep of centroid2centroid line with
+                            %separation plane as the new synapse point
                             u=ocluster_cen-scluster_cen;
-                            w=scluster_cen-pmidpt_synapse;
+                            w=scluster_cen-x(1,:);
                             D=dot(pnorm_synapse,u);
                             N=-dot(pnorm_synapse,w);
                             sI = N / D;
                             pmidpt_synapse = scluster_cen+ sI.*u;
                             
+                            %initilise plane normal of symmetrical plane
                             pnorm2=cross(scluster_cen-midpoint,ocluster_cen-midpoint);
+                            %pnorm2=cross(scluster_cen-pmidpt_synapse,ocluster_cen-pmidpt_synapse);
+                            %normalisation
                             pnorm2=pnorm2/norm(pnorm2);
                             init_plane=[scluster_cen;pnorm2];
-                            odistfunc2=@(plane)sum(bsxfun(@times,bsxfun(@minus,plane(1,:),qp1),plane(2,:)).^2,2)/numel(qp1);%minimise distance^2
-                            sdistfunc2=@(plane)sum(bsxfun(@times,bsxfun(@minus,plane(1,:),qp2),plane(2,:)).^2,2)/numel(qp2);%minimise distance^2
-                            distfunc2=@(plane)(sum(odistfunc2(plane))+sum(sdistfunc2(plane)))+abs(rad2deg(acos(dot(plane(2,:),pnorm_synapse)))-90);
-                            [x,fval,exitflag]=fminsearch(distfunc2,init_plane,optimset('TolX',1e-6,'MaxFunEvals',1e5));
-                            pmidpt_p2=x(1,:);
+                            %%distance function for both set of clusters
+                            odistfunc2=@(plane)sum(bsxfun(@times,bsxfun(@minus,plane(1,:),qp1),plane(2,:)).^2,2);%minimise distance^2
+                            sdistfunc2=@(plane)sum(bsxfun(@times,bsxfun(@minus,plane(1,:),qp2),plane(2,:)).^2,2);%minimise distance^2
+                            %distance fucntion to maximise symmetry but to
+                            %maintain orthogonality to synapse separation
+                            %plane
+                            distfunc2=@(plane)(sum(odistfunc2(plane))/numel(qp1)+sum(sdistfunc2(plane))/numel(qp2))+abs(rad2deg(acos(dot(plane(2,:),pnorm_synapse)))-90);
+                            [x,fval,exitflag]=fminsearch(distfunc2,init_plane,optimset('TolX',1e-5,'MaxFunEvals',1e6));
+                            %pmidpt_p2=x(1,:);
                             pnorm_p2=x(2,:)/norm(x(2,:));
-                            if exitflag||~exitflag
+                            if exitflag
+                                %form orthogonal R3 vector set
                                 pnorm_p3=cross(pnorm_synapse,pnorm_p2);
-                                pmidpt_p3=[pnorm_synapse;pnorm_p2;pnorm_p3]\[dot(pnorm_synapse,pmidpt_synapse);dot(pnorm_p2,pmidpt_p2);0];
-                                pmidpt_p3= pmidpt_p3';
+                                %pmidpt_p3=[pnorm_synapse;pnorm_p2;pnorm_p3]\[dot(pnorm_synapse,pmidpt_synapse);dot(pnorm_p2,pmidpt_p2);0];
+                                %pmidpt_p3= pmidpt_p3';
                                 
-                                %temporary plotting
-                                figure(fh);cla;
-                                subplot(2,2,1)
-                                scatter3(scluster.Points(:,1),scluster.Points(:,2),scluster.Points(:,3),'g','filled');hold on;
-                                scatter3(scluster_cen(:,1),scluster_cen(:,2),scluster_cen(:,3),80,'g','filled');
-                                scatter3(ocluster.Points(:,1),ocluster.Points(:,2),ocluster.Points(:,3),'r','filled');
-                                scatter3(ocluster_cen(:,1),ocluster_cen(:,2),ocluster_cen(:,3),80,'r','filled');
+                                %get auxilary probe points
+                                auxprobe=setxor([oprobe,currentprobe],[1:1:numel(probe_list)]);
+                                invol=sqrt(sum(bsxfun(@minus,DATA.probe(auxprobe).location,pmidpt_synapse).^2,2))<=prox_dist;
+                                aux_cluster_points=DATA.probe(auxprobe).location(invol,:);
                                 
-                                scatter3(pmidpt_synapse(:,1),pmidpt_synapse(:,2),pmidpt_synapse(:,3),80,'k','filled');
-                                quiver3(pmidpt_synapse(1),pmidpt_synapse(2),pmidpt_synapse(3),pnorm_synapse(1),pnorm_synapse(2),pnorm_synapse(3),'LineWidth',5,'Color','k');
-                                scatter3(pmidpt_p2(:,1),pmidpt_p2(:,2),pmidpt_p2(:,3),80,'y','filled');
-                                quiver3(pmidpt_p2(1),pmidpt_p2(2),pmidpt_p2(3),pnorm_p2(1),pnorm_p2(2),pnorm_p2(3),'LineWidth',5,'Color','y');
-                                scatter3(pmidpt_p3(:,1),pmidpt_p3(:,2),pmidpt_p3(:,3),80,'m','filled');
-                                quiver3(pmidpt_p3(1),pmidpt_p3(2),pmidpt_p3(3),pnorm_p3(1),pnorm_p3(2),pnorm_p3(3),'LineWidth',5,'Color','m');
-                                w = null(pnorm_synapse,'r'); % Find two orthonormal vectors which are orthogonal to v
-                                [P,Q] = meshgrid(-10:20); % Provide a gridwork (you choose the size)
-                                X = pmidpt_synapse(1)+w(1,1)*P+w(1,2)*Q; % Compute the corresponding cartesian coordinates
-                                Y = pmidpt_synapse(2)+w(2,1)*P+w(2,2)*Q; %   using the two vectors in w
-                                Z = pmidpt_synapse(3)+w(3,1)*P+w(3,2)*Q;
-                                pfit=surf(X,Y,Z,'LineStyle','none','FaceColor','k','FaceAlpha',0.2);
-                                w = null(pnorm_p2,'r'); % Find two orthonormal vectors which are orthogonal to v
-                                [P,Q] = meshgrid(-10:20); % Provide a gridwork (you choose the size)
-                                X = pmidpt_p2(1)+w(1,1)*P+w(1,2)*Q; % Compute the corresponding cartesian coordinates
-                                Y = pmidpt_p2(2)+w(2,1)*P+w(2,2)*Q; %   using the two vectors in w
-                                Z = pmidpt_p2(3)+w(3,1)*P+w(3,2)*Q;
-                                pfit=surf(X,Y,Z,'LineStyle','none','FaceColor','y','FaceAlpha',0.2);
-                                w = null(pnorm_p3,'r'); % Find two orthonormal vectors which are orthogonal to v
-                                [P,Q] = meshgrid(-10:20); % Provide a gridwork (you choose the size)
-                                X = pmidpt_p2(1)+w(1,1)*P+w(1,2)*Q; % Compute the corresponding cartesian coordinates
-                                Y = pmidpt_p2(2)+w(2,1)*P+w(2,2)*Q; %   using the two vectors in w
-                                Z = pmidpt_p2(3)+w(3,1)*P+w(3,2)*Q;
-                                pfit=surf(X,Y,Z,'LineStyle','none','FaceColor','m','FaceAlpha',0.2);
+                                %origin translation to synapse point
+                                Mmove=[[eye(3);-pmidpt_synapse],[0;0;0;1]];
+                                %plane rotation to match xz plane
+                                Rmove=zeros(4,4);Rmove(4,4)=1;
+                                Rmove(1:3,1:3)=([pnorm_synapse',pnorm_p3',pnorm_p2']);%rotation to x,y,z
+                                %transform points to new local coordinate
+                                sclusterpt=[scluster.Points,ones(size(scluster.Points,1),1)]*Mmove*Rmove;
+                                oclusterpt=[ocluster.Points,ones(size(ocluster.Points,1),1)]*Mmove*Rmove;
+                                aclusterpt=[aux_cluster_points,ones(size(aux_cluster_points,1),1)]*Mmove*Rmove;
+                                %transform from cart to cylindrical
+                                %use angle to separate two groups in term
+                                %of distance
+                                [theta,r,z]=cart2pol(sclusterpt(:,1),sclusterpt(:,2),sclusterpt(:,3));
+                                r1{clusterid}=((abs(theta)<=pi/2)*2-1).*r;%0-pi/2=+ve
+                                z1{clusterid}=z;
+                                [theta,r,z]=cart2pol(oclusterpt(:,1),oclusterpt(:,2),oclusterpt(:,3));
+                                r2{clusterid}=((abs(theta)<=pi/2)*2-1).*r;%0-pi/2=-ve
+                                z2{clusterid}=z;
+                                [theta,r,z]=cart2pol(aclusterpt(:,1),aclusterpt(:,2),aclusterpt(:,3));
+                                r3{clusterid}=((abs(theta)<=pi/2)*2-1).*r;%0-pi/2=+ve
+                                z3{clusterid}=z;
+                                
+                                %calculate histogram for distance to
+                                %synapse centre
+                                dr=0.02;
+                                [n1,e1]=histcounts(r1{clusterid},min(r1{clusterid}):dr:max(r1{clusterid}));
+                                e1=e1(1:end-1)+dr/2;
+                                [n2,e2]=histcounts(r2{clusterid},min(r2{clusterid}):dr:max(r2{clusterid}));
+                                e2=e2(1:end-1)+dr/2;
+                                [n3,e3]=histcounts(r3{clusterid},min(r3{clusterid}):dr:max(r3{clusterid}));
+                                e3=e3(1:end-1)+dr/2;
+                                %export r1 value
+                                
+                                %plotting
+                                figure(fh);
+                                subplot(2,2,1);cla;
+                                scatter3(pmidpt_synapse(:,1),pmidpt_synapse(:,2),pmidpt_synapse(:,3),'k','filled');hold on;
+                                scatter3(scluster.Points(:,1),scluster.Points(:,2),scluster.Points(:,3),DATA.datainfo.probe_colours(currentprobe),'filled');
+                                scatter3(scluster_cen(:,1),scluster_cen(:,2),scluster_cen(:,3),80,DATA.datainfo.probe_colours(currentprobe),'filled');
+                                scatter3(ocluster.Points(:,1),ocluster.Points(:,2),ocluster.Points(:,3),DATA.datainfo.probe_colours(oprobe),'filled');
+                                scatter3(ocluster_cen(:,1),ocluster_cen(:,2),ocluster_cen(:,3),80,DATA.datainfo.probe_colours(oprobe),'filled');
+                                scatter3(aux_cluster_points(:,1),aux_cluster_points(:,2),aux_cluster_points(:,3),DATA.datainfo.probe_colours(auxprobe),'filled');
                                 axis([min(min(scluster.Points(:,1)),min(ocluster.Points(:,1))),...
                                     max(max(scluster.Points(:,1)),max(ocluster.Points(:,1))),...
                                     min(min(scluster.Points(:,2)),min(ocluster.Points(:,2))),...
@@ -2107,52 +2196,90 @@ try
                                     max(max(scluster.Points(:,3)),max(ocluster.Points(:,3)))]);
                                 axis 'square';
                                 
-                                subplot(2,2,2);cla;
-                                proj_vec=[pnorm_synapse;pnorm_p2]';
-                                %proj_vec=null(pnorm_p3(:).');
-                                trans_line=[pmidpt_synapse-1*pnorm_p2;pmidpt_synapse+1*pnorm_p2];
-                                proj_trans_line=trans_line*proj_vec;
-                                proj_pmidpt_synapse=pmidpt_synapse*proj_vec;
-                                proj_scluster_pts=scluster.Points*proj_vec;
-                                proj_ocluster_pts=ocluster.Points*proj_vec;
-                                scatter(proj_scluster_pts(:,1),proj_scluster_pts(:,2),'g');hold on;
-                                scatter(proj_ocluster_pts(:,1),proj_ocluster_pts(:,2),'r');
-                                scatter(proj_pmidpt_synapse(:,1),proj_pmidpt_synapse(:,2),80,'k','filled');
-                                plot(proj_trans_line(:,1),proj_trans_line(:,2),'y','LineWidth',2,'LineStyle','--');
-                                axis 'square';
-                                
                                 subplot(2,2,3);cla;
-                                %origin translation to synapse point
-                                Mmove=[[eye(3);-pmidpt_synapse],[0;0;0;1]];
-                                %plane rotation to match xz plane
-                                Rmove=zeros(4,4);Rmove(4,4)=1;
-                                Rmove(1:3,1:3)=([pnorm_synapse',pnorm_p3',pnorm_p2']);
-                                sclusterpt=[scluster.Points,ones(size(scluster.Points,1),1)]*Mmove*Rmove;
-                                oclusterpt=[ocluster.Points,ones(size(ocluster.Points,1),1)]*Mmove*Rmove;
-                                scatter3(sclusterpt(:,1),sclusterpt(:,2),sclusterpt(:,3),'g');hold on;
-                                scatter3(oclusterpt(:,1),oclusterpt(:,2),oclusterpt(:,3),'r');
+                                scatter3(sclusterpt(:,1),sclusterpt(:,2),sclusterpt(:,3),DATA.datainfo.probe_colours(currentprobe));hold on;
+                                scatter3(oclusterpt(:,1),oclusterpt(:,2),oclusterpt(:,3),DATA.datainfo.probe_colours(oprobe));
+                                scatter3(aclusterpt(:,1),aclusterpt(:,2),aclusterpt(:,3),DATA.datainfo.probe_colours(auxprobe));
                                 axis 'square';grid on;xlabel('x');ylabel('y');zlabel('z');
                                 
                                 subplot(2,2,4);cla;
-                                [theta1,r1,z1]=cart2pol(sclusterpt(:,1),sclusterpt(:,2),sclusterpt(:,3));
-                                [theta2,r2,z2]=cart2pol(oclusterpt(:,1),oclusterpt(:,2),oclusterpt(:,3));
-                                r1=((abs(theta1)<pi/2)*2-1).*r1;%0-pi=+ve
-                                r2=((abs(theta2)<pi/2)*2-1).*r2;%0-pi=-ve
-                                scatter(r1,z1,'g');hold on;
-                                scatter(r2,z2,'r');
+                                scatter(0,0,20,'k','filled','o');hold on;
+                                scatter(r1{clusterid},z1{clusterid},DATA.datainfo.probe_colours(currentprobe),'.');
+                                scatter(r2{clusterid},z2{clusterid},DATA.datainfo.probe_colours(oprobe),'.');
+                                scatter(r3{clusterid},z3{clusterid},DATA.datainfo.probe_colours(auxprobe),'.');
                                 axis([-1,1,-1,1]);
                                 axis 'square';grid minor;xlabel('r');ylabel('z');
-                                %projection from which plane normal to splane side?
-                                sprintf('done\n');
+                                
+                                subplot(2,2,2);cla;
+                                plot(e1,n1,'LineWidth',2,'Color',DATA.datainfo.probe_colours(currentprobe));hold on;
+                                plot(e2,n2,'LineWidth',2,'Color',DATA.datainfo.probe_colours(oprobe));
+                                plot(e3,n3,'LineWidth',2,'Color',DATA.datainfo.probe_colours(auxprobe));
+                                grid minor;xlabel('r');ylabel('N_{loc}');
                             else
-                                errordlg(sprintf('synapse 2D projection analysis failed to find syanpse symmetry\n'));
+                                errordlg(sprintf('Failed to find synapse symmetry for cluster %g\n',selected_cluster(clusterid)));
                             end
                         else
-                            errordlg(sprintf('synapse 2D projection analysis failed to find syanpse separation\n'));
+                            errordlg(sprintf('Failed to find synapse separation for cluster %g\n',selected_cluster(clusterid)));
                         end
                     end
-                    
                 end
+                %combined data plot
+                fh_tot=figure('Name',sprintf('Nearest Probe Site Distance to synapse collective (pageup/pagedown adjust dr)'),...
+                    'NumberTitle','off',...
+                    'MenuBar','none',...
+                    'ToolBar','figure',...
+                    'Position',[0,0,900,600],...
+                    'Color',[0.5,0.5,0.5],...
+                    'Tag','Synapse_tot',...
+                    'UserData',[0.05],...
+                    'Keypressfcn',@figure_keypress);
+                dr=0.05;dz=dr;
+                
+                subplot(2,2,1);cla;
+                rz1_tot=[cell2mat(r1(:)),cell2mat(z1(:))];
+                rz2_tot=[cell2mat(r2(:)),cell2mat(z2(:))];
+                rz3_tot=[cell2mat(r3(:)),cell2mat(z3(:))];
+                scatter(rz1_tot(:,1),rz1_tot(:,2),5,DATA.datainfo.probe_colours(currentprobe),'.');hold on;
+                scatter(rz2_tot(:,1),rz2_tot(:,2),5,DATA.datainfo.probe_colours(oprobe),'.');
+                scatter(rz3_tot(:,1),rz3_tot(:,2),5,DATA.datainfo.probe_colours(auxprobe),'.');
+                axis 'square';grid minor;xlabel('r');ylabel('z');
+                
+                subplot(2,2,3);set(gca,'Tag','synrgbimg');
+                scalemin=min([min(rz1_tot,[],1);min(rz2_tot,[],1);min(rz3_tot,[],1)],[],1);
+                scalemax=max([max(rz1_tot,[],1);max(rz2_tot,[],1);max(rz3_tot,[],1)],[],1);
+                [rz1_ch,~]=hist3(rz1_tot,{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                [rz2_ch,~]=hist3(rz2_tot,{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                [rz3_ch,~]=hist3(rz3_tot,{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                rgbimg=cat(3,rz2_ch./max(rz2_ch(:)),rz1_ch./max(rz1_ch(:)),rz3_ch./max(rz3_ch(:)));
+                himage=image(imrotate(rgbimg,90));axis square;title(sprintf('dr=%g',dr));
+                set(himage,'UserData',dr);
+                
+                subplot(2,2,2);cla;
+                [n1,e1]=histcounts(rz1_tot(:,1),min(rz1_tot(:,1)):dr:max(rz1_tot(:,1)));
+                e1=e1(1:end-1)+dr/2;
+                [n2,e2]=histcounts(rz2_tot(:,1),min(rz2_tot(:,1)):dr:max(rz2_tot(:,1)));
+                e2=e2(1:end-1)+dr/2;
+                [n3,e3]=histcounts(rz3_tot(:,1),min(rz3_tot(:,1)):dr:max(rz3_tot(:,1)));
+                e3=e3(1:end-1)+dr/2;
+                plot(e1,n1,'LineWidth',2,'Color',DATA.datainfo.probe_colours(currentprobe));hold on;
+                plot(e2,n2,'LineWidth',2,'Color',DATA.datainfo.probe_colours(oprobe));
+                plot(e3,n3,'LineWidth',2,'Color',DATA.datainfo.probe_colours(auxprobe));
+                grid minor;xlabel('r');ylabel('N_{loc}');
+                
+                subplot(2,2,4);cla;
+                rzdist=sqrt(sum(rz1_tot.^2,2)).*sign(rz1_tot(:,1));
+                [n1,e1]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                e1=e1(1:end-1)+dr/2;
+                rzdist=sqrt(sum(rz2_tot.^2,2)).*sign(rz2_tot(:,1));
+                [n2,e2]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                e2=e2(1:end-1)+dr/2;
+                rzdist=sqrt(sum(rz3_tot.^2,2)).*sign(rz3_tot(:,1));
+                [n3,e3]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                e3=e3(1:end-1)+dr/2;
+                plot(e1,n1,'LineWidth',2,'Color',DATA.datainfo.probe_colours(currentprobe));hold on;
+                plot(e2,n2,'LineWidth',2,'Color',DATA.datainfo.probe_colours(oprobe));
+                plot(e3,n3,'LineWidth',2,'Color',DATA.datainfo.probe_colours(auxprobe));
+                grid minor;xlabel('rzdist');ylabel('N_{loc}');
             else
                 errordlg(sprintf('synapse 2D projection analysis cancelled\n'));
             end
@@ -2166,4 +2293,3 @@ catch exception
     end
     errordlg(exception.message,'Calculation Error','modal');
 end
-
