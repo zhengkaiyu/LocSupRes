@@ -95,8 +95,8 @@ if ~exist('nsig','var')
     % significant figure bound by (0.5,5) default to 1
     nsig=max(min(1,5),0.5);
 end
-if ~exist('nsig','var')
-fval=max(min(fval,5),0.1);% spherical cutoff in from 0.1 to 5um
+if ~exist('radius','var')
+    radius=max(min(1,5),0.1);% spherical cutoff in from 0.1 to 5um
 end
 %------------------------------------------------------------------------
 % ask for folder
@@ -153,37 +153,39 @@ if ischar(pathname)
         % plot cylindrical r_distance histogram
         subplot(2,3,1);cla;hold on;
         for probeidx=1:numel(rz_tot)
-            [n,e]=histcounts(rz_tot{probeidx}(:,1),min(rz_tot{probeidx}(:,1)):dr:max(rz_tot{probeidx}(:,1)));e=e(1:end-1)+dr/2;
+            [n,e]=histcounts(rz_tot{probeidx}(:,1),min(rz_tot{probeidx}(:,1)):dr:max(rz_tot{probeidx}(:,1)));
+            if ~isempty(find(probeidx==synapsepair))
+                deltaA=dr*radius;
+            else
+                deltaA=(dr*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
+            end
+            n=n./deltaA;
+            e=e(1:end-1)+dr/2;
             plot(e,n,'LineWidth',2,'Color',probe_colours(probeidx));
         end
-        grid minor;xlabel('r_{cylindrical}');ylabel('N_{localisation}');
+        grid minor;xlabel('r_{cylindrical}');ylabel('\rho_{localisation}(\mum^{-2})');
         
         %--------------------
         % plot cylindrical z_distance histogram
         subplot(2,3,2);cla;hold on;
         for probeidx=1:numel(rz_tot)
-            [n,e]=histcounts(rz_tot{probeidx}(:,2),min(rz_tot{probeidx}(:,2)):dz:max(rz_tot{probeidx}(:,2)));e=e(1:end-1)+dr/2;
+            [n,e]=histcounts(rz_tot{probeidx}(:,2),min(rz_tot{probeidx}(:,2)):dz:max(rz_tot{probeidx}(:,2)));
             if ~isempty(find(probeidx==synapsepair))
-                plot(e,n,'LineWidth',2,'Color',probe_colours(probeidx));
                 % only record synapse pair probe values for estimating
                 % synaptic edges
                 sigma=nsig*std(rz_tot{probeidx}(:,2));
-                %psdidx=[find(n>=max(n)*FWHM_ratio,1,'first'),find(n>=max(n)*FWHM_ratio,1,'last')];
-                %zminmax=[zminmax,[e(psdidx(1));e(psdidx(2))]];
                 zminmax=[zminmax,[-sigma;sigma]];
+                deltaA=dz*radius;
             else
                 % correction for distribution because of spherical cutoff
-                % in cylindrical coordinate
-                %{
-                cf=(0.5*dz*((1-e.^2).^0.5+(1-(e+dz).^2).^0.5));
-                cf=cf./max(cf);
-                n=n./cf;
-                %}
-                plot(e,n,'LineWidth',2,'Color',probe_colours(probeidx));
+                % in cylindrical coordinate for glt1
+                deltaA=(dz*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
             end
-            
+            n=n./deltaA;
+            e=e(1:end-1)+dz/2;
+            plot(e,n,'LineWidth',2,'Color',probe_colours(probeidx));
         end
-        grid minor;xlabel('z_{cylindrical}');ylabel('N_{localisation}');
+        grid minor;xlabel('z_{cylindrical}');ylabel('\rho_{localisation}(\mum^{-2})');
         % work out estimated synapse edges
         zminmax=[min(zminmax(:)),max(zminmax(:))];
         fh_tot.UserData.zminmax=zminmax;
@@ -208,10 +210,13 @@ if ischar(pathname)
         for probeidx=1:numel(rz_tot)
             % sign preserving distances
             rzdist=sqrt(sum(rz_tot{probeidx}.^2,2)).*sign(rz_tot{probeidx}(:,1));
-            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));e=e(1:end-1)+dr/2;
+            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+            deltaA=pi*dr*(2*abs(e(1:end-1))+dr);
+            e=e(1:end-1)+dr/2;
+            n=n./deltaA;
             plot(e,n,'LineWidth',2,'Color',probe_colours(probeidx));
         end
-        grid minor;xlabel('Dist_{rz}');ylabel('N_{localisation}');
+        grid minor;xlabel('Dist_{rz}');ylabel('\rho_{localisation}(\mum^{-2})');
         
         %--------------------
         % plot distance to the nearest synapse edge
@@ -299,44 +304,46 @@ end
                         % plot cylindrical r_distance histogram
                         subplot(2,3,1);lineplot=get(gca);
                         for pidx=1:numel(rz_tot)
-                            [n,e]=histcounts(rz_tot{pidx}(:,1),min(rz_tot{pidx}(:,1)):dr:max(rz_tot{pidx}(:,1)));e=e(1:end-1)+dr/2;
+                            [n,e]=histcounts(rz_tot{pidx}(:,1),min(rz_tot{pidx}(:,1)):dr:max(rz_tot{pidx}(:,1)));
+                            if ~isempty(find(pidx==synapsepair))
+                                deltaA=dr*radius;
+                            else
+                                deltaA=(dr*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
+                            end
+                            n=n./deltaA;
+                            e=e(1:end-1)+dr/2;
                             set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
                         end
                         
                         %--------------------
                         % plot cylindrical z_distance histogram
                         subplot(2,3,2);lineplot=get(gca);
-                        %zminmax=[];
                         for pidx=1:numel(rz_tot)
-                            [n,e]=histcounts(rz_tot{pidx}(:,2),min(rz_tot{pidx}(:,2)):dz:max(rz_tot{pidx}(:,2)));e=e(1:end-1)+dr/2;
-                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
-                            %{
+                            [n,e]=histcounts(rz_tot{pidx}(:,2),min(rz_tot{pidx}(:,2)):dz:max(rz_tot{pidx}(:,2)));
                             if ~isempty(find(pidx==synapsepair))
-                                % only record synapse pair probe values for estimating
-                                % synaptic edges
-                                % sigma in z
-                                sigma=nsig*std(rz_tot{pidx}(:,2));
-                                %psdidx=[find(n>=max(n)*FWHM_ratio,1,'first'),find(n>=max(n)*FWHM_ratio,1,'last')];
-                                %zminmax=[zminmax,[e(psdidx(1));e(psdidx(2))]];
-                                zminmax=[zminmax,[-sigma;sigma]];
+                                deltaA=dz*radius;
+                            else
+                                deltaA=(dz*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
                             end
-                            %}
+                            n=n./deltaA;
+                            e=e(1:end-1)+dz/2;
+                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
                         end
-                        % work out estimated synapse edges
-                        %zminmax=[min(zminmax(:)),max(zminmax(:))];
-                        %hplot.UserData.zminmax=zminmax;
                         
                         %--------------------
                         % alter synapse edge
-                        subplot(2,3,3);temp=gca;
-                        set(temp.Children(4),'YData',zminmax);
+                        %subplot(2,3,3);temp=gca;
+                        %set(temp.Children(4),'YData',zminmax);
                         %--------------------
                         % plot histogram of radial rz distance i.e. distance to the origin
                         subplot(2,3,4); lineplot=get(gca);
                         for pidx=1:numel(rz_tot)
                             % sign preserving distances
                             rzdist=sqrt(sum(rz_tot{pidx}.^2,2)).*sign(rz_tot{pidx}(:,1));
-                            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));e=e(1:end-1)+dr/2;
+                            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                            deltaA=pi*dr*(2*abs(e(1:end-1))+dr);
+                            e=e(1:end-1)+dr/2;
+                            n=n./deltaA;
                             set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
                         end
                         
@@ -345,15 +352,30 @@ end
                         subplot(2,3,5);lineplot=get(gca);
                         for pidx=1:numel(rz_tot)
                             syndist=[];rzdist=[];
+                            %{
+                            % above
+                            pt_sec1=rz_tot{pidx}(rz_tot{pidx}(:,2)>=max(zminmax),:);
+                            dist_sec1=sqrt(sum(bsxfun(@minus,pt_sec1,[0,max(zminmax)]).^2,2)).*sign(pt_sec1(:,1));
+                            % central
+                            dist_sec2=rz_tot{pidx}((rz_tot{pidx}(:,2)<max(zminmax)&rz_tot{pidx}(:,2)>min(zminmax)),1);
+                            % below
+                            pt_sec3=rz_tot{pidx}(rz_tot{pidx}(:,2)<=min(zminmax),:);
+                            dist_sec3=sqrt(sum(bsxfun(@minus,pt_sec3,[0,min(zminmax)]).^2,2)).*sign(pt_sec3(:,1));
+                            % combined
+                            rzdist=[dist_sec1;dist_sec2;dist_sec3];
+                            %}
+                            
                             syndist(:,1)=sqrt(sum(bsxfun(@minus,rz_tot{pidx},[0,zminmax(1)]).^2,2));
                             syndist(:,2)=sqrt(sum(bsxfun(@minus,rz_tot{pidx},[0,zminmax(2)]).^2,2));
                             syndist(:,3)=sqrt(sum(rz_tot{pidx}.^2,2));
                             rzdist=min(syndist,[],2).*sign(rz_tot{pidx}(:,1));
+                            
                             [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
+                            %deltaA=pi*dr*(2*abs(e(1:end-1))+dr);
+                            %n=n./deltaA;
                             e=e(1:end-1)+dr/2;
                             set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
                         end
-                        title(sprintf('W_{synapse} estimated from cluster FWHM = %gnm',1e3*abs(diff(zminmax))));
                         
                         %----------------------------------
                         subplot(2,3,6);
