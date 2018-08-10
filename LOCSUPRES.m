@@ -2290,6 +2290,7 @@ try
                         end
                     end
                 end
+                n_cluster=numel(find(cellfun(@(x)~isempty(x),TM)));
                 %combined data plot
                 fh_tot=figure('Name',sprintf('Nearest Probe Site Distance to synapse collective (pageup/pagedown adjust dr)'),...
                     'NumberTitle','off',...

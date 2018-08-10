@@ -219,6 +219,8 @@ if ischar(pathname)
             dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(rzcoord{probeidx}(:,1));
             [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
             c=e(1:end-1)+dr/2;
+            deltaA=pi*(2*prox_dist)*dr*(2*abs(c)+dr);
+            n=n./deltaA;
             subplot(2,3,3);
             plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
             
@@ -229,7 +231,7 @@ if ischar(pathname)
         title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*abs(diff(zminmax))));
         set(gca,'Tag','synapse_rz_scatter');
         subplot(2,3,3);
-        grid minor;xlabel('dist_{rz}');ylabel('N_{loc}');
+        grid minor;xlabel('dist_{rz}');ylabel('\rho_{localisation}(\mum^{-3})');
         % parallel transform combined rgbimage
         subplot(2,3,2);set(gca,'Tag','synrgbimg');
         rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
@@ -262,6 +264,8 @@ if ischar(pathname)
             dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(rzcoord{probeidx}(:,1));
             [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
             c=e(1:end-1)+dr/2;
+            deltaA=pi*(2*prox_dist)*dr*(2*abs(c)+dr);
+            n=n./deltaA;
             subplot(2,3,6);
             plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
             
@@ -272,7 +276,7 @@ if ischar(pathname)
         title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*abs(diff(rminmax))));
         set(gca,'Tag','synapse_rz_scatter');
         subplot(2,3,6);
-        grid minor;xlabel('dist_{rz}');ylabel('N_{loc}');
+        grid minor;xlabel('dist_{rz}');ylabel('\rho_{localisation}(\mum^{-3})');
         % parallel transform combined rgbimage
         subplot(2,3,5);set(gca,'Tag','synrgbimg');
         rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
