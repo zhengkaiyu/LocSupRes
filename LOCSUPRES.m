@@ -926,7 +926,7 @@ switch eventkey.Key
                 for pidx=1:n_probe
                     %preserving r dim so that pre and post side are
                     %maintained
-                    dist=sqrt(sum(rzcoord{pidx}.^2,2)).*sign(rzcoord{pidx}(:,1));
+                    dist=sqrt(sum(rzcoord{pidx}.^2,2)).*sign(sign(rzcoord{pidx}(:,1))+0.5);
                     [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
                     c=e(1:end-1)+dr/2;
                     
@@ -957,7 +957,7 @@ switch eventkey.Key
                 for pidx=1:n_probe
                     %preserving r dim so that pre and post side are
                     %maintained
-                    dist=sqrt(sum(rzcoord{pidx}.^2,2)).*sign(rzcoord{pidx}(:,1));
+                    dist=sqrt(sum(rzcoord{pidx}.^2,2)).*sign(sign(rzcoord{pidx}(:,1))+0.5);
                     [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
                     c=e(1:end-1)+dr/2;
                     
@@ -2321,7 +2321,7 @@ try
                     xyzcoord{probeidx}=cell2mat(cluster_pts(:,probeidx));
                 end
                 % work out synapse edge using parallel transform
-                sigma=[nsig*std(rzcoord{1}(:,2));1.0*std(rzcoord{2}(:,2))];
+                sigma=[nsig*std(rzcoord{1}(:,2));nsig*std(rzcoord{2}(:,2))];
                 zminmax=[-sigma;sigma];
                 zminmax=[min(zminmax(:)),max(zminmax(:))];
                 scalemin=min(cell2mat(rzcoord'));
@@ -2336,7 +2336,7 @@ try
                     scatter(rzcoord{probeidx}(:,1),rzcoord{probeidx}(:,2),5,probecolour(probeidx),'.');
                     %preserving r dim so that pre and post side are
                     %maintained
-                    dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(rzcoord{probeidx}(:,1));
+                    dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(sign(rzcoord{probeidx}(:,1))+0.5);
                     [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
                     c=e(1:end-1)+dr/2;
                     subplot(2,3,3);
@@ -2366,7 +2366,7 @@ try
                     xyzcoord{probeidx}=cell2mat(cluster_pts(:,probeidx));
                 end
                 % work out synapse edge using parallel transform
-                sigma=[nsig*std(rzcoord{1}(:,1));1.0*std(rzcoord{2}(:,1))];
+                sigma=[nsig*std(rzcoord{1}(:,1));nsig*std(rzcoord{2}(:,1))];
                 rminmax=[-sigma;sigma];
                 rminmax=[min(rminmax(:)),max(rminmax(:))];
                 scalemin=min(cell2mat(rzcoord'));
@@ -2381,7 +2381,7 @@ try
                     scatter(rzcoord{probeidx}(:,1),rzcoord{probeidx}(:,2),5,probecolour(probeidx),'.');
                     %preserving z dim so that pre and post side are
                     %maintained
-                    dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(rzcoord{probeidx}(:,1));
+                    dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(sign(rzcoord{probeidx}(:,1))+0.5);
                     [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
                     c=e(1:end-1)+dr/2;
                     subplot(2,3,6);

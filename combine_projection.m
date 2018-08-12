@@ -1,9 +1,22 @@
-function [ output_args ] = combine_projection(varargin)
-%COMBINE_PROJECTION Summary of this function goes here
-%   Detailed explanation goes here
-
+function combine_projection(varargin)
+%COMBINE_PROJECTION combine exported 3probe 2d projection scatter data
+% input options: pathname = folder containing exported files
+%                probecolour = colour code for plotting, default 'grbymc'
+%                synapsepair = index of pre and post probe id, default [1,2]
+%                minres,maxres,dres = resolution settings, default 0.005,0.5,0.005 um
+%                nsig = num of significant figures for estimating synapse, default 1.0
+%
+% exported file format: [cluster_pts,TM,prox_dist] containing cluster
+%                       points before transformation, transformation matrix
+%                       for [origin, synapse plane normal, symmetry plane
+%                       normal p2, orthogonal plane p3 ] and proximity
+%                       distance which is generally 1um (Note this is for
+%                       cylindrical coordinates only, spherical coordinate
+%                       cutoff has already been applied as sqrt(2)*R before
+%                       exporting
+% unit um
 %------------------------------------------------------------------------
-% reading options
+% read argument in options
 if nargin>0
     for arginidx=1:2:(numel(nargin))
         fname=varargin{arginidx};
@@ -40,13 +53,6 @@ if nargin>0
                 else
                     errordlg(sprintf('%s need to be a numeric value between 0.5-5\n',fname));
                 end
-            case 'radius'
-                if isnumeric(fval)
-                    fval=max(min(fval,5),0.1);% spherical cutoff in from 0.1 to 5um
-                    eval(cat(2,fname,'=',num2str(fval)));
-                else
-                    errordlg(sprintf('%s need to be a numeric value >0\n',fname));
-                end
             otherwise
                 errordlg(sprintf('unknown argument option ''%s''\n',fname));
         end
@@ -58,15 +64,15 @@ if ~exist('pathname','var')
     % default folder
     pathname='D:\Temporary\Janosh\analysed';
 end
-% default colour coding
 if ~exist('probecolour','var')
+    % default colour coding
     probecolour='grbymc';
     % rgb index in probe colour for rgb image formation
     rgbidx=[find(probecolour=='r'),find(probecolour=='g'),find(probecolour=='b')];
 end
 if ~exist('synapsepair','var')
     % synapse probe pair index, default to probe 2 and 3
-    synapsepair=[2,3];
+    synapsepair=[1,2];
 end
 if ~exist('minres','var')
     % minimum resolution
@@ -84,9 +90,9 @@ if ~exist('nsig','var')
     % significant figure bound by (0.5,5) default to 1
     nsig=max(min(1,5),0.5);
 end
-if ~exist('radius','var')
-    radius=max(min(1,5),0.1);% spherical cutoff in from 0.1 to 5um
-end
+% subplot grid size row for transform and col for parameters
+plotsize=[3,5];
+n_transform=2;
 %------------------------------------------------------------------------
 % ask for folder
 [filename,pathname,~]=uigetfile({'*.mat','MAT-files (*.mat)';'*.*','All Files (*.*)'},...
@@ -98,7 +104,6 @@ if ischar(pathname)
         filename={filename};
     end
     % initialise rz_tot, the rz matrix, containing three probes
-    rz_tot=cell(1,3);
     appendidx=0;
     aligned_cluster_pts=[];
     % fill in rz_tot with data files containing rz_tot data
@@ -113,6 +118,8 @@ if ischar(pathname)
                 n_cluster=numel(temp.TM);
                 % transform points for each cluster
                 for clusteridx=1:n_cluster
+                    % TM transform matrix in format
+                    %[origin,synapse plane normal,symmetry plane normal p2,orthogonal plane p3]
                     pmidpt_synapse=temp.TM{clusteridx}(1:3)';
                     pnorm_synapse=temp.TM{clusteridx}(4:6)';
                     pnorm_p2=temp.TM{clusteridx}(7:9)';
@@ -169,7 +176,7 @@ if ischar(pathname)
         errordlg(sprintf('no data loaded from files\n'));
     else
         % initialise dr,dz,zminmax
-        dr=minres;dz=dr;zminmax=[];
+        dr=dres;dz=dr;
         n_probe=size(cluster_pts,2);
         n_cluster=numel(aligned_cluster_pts);
         %------------------------------------
@@ -190,227 +197,203 @@ if ischar(pathname)
         %trans_cluster_pts %n_cluster X 2transform (contain 1x3 probe, contain nx2 rzcoord)
         %cluster_pts %n_cluster X n_probe (contain nx3 xyzcoord)
         %-------------------------
-        aligedcollect=reshape([aligned_cluster_pts{:}]',n_probe,size(trans_cluster_pts,1))';
-        %parallel transform
-        transidx=1;%1st transform
-        rzcollect=reshape([trans_cluster_pts{:,transidx}]',n_probe,size(trans_cluster_pts,1))';
-        for probeidx=1:n_probe
-            % all cluster transformed loc for the probe
-            rzcoord{probeidx}=cell2mat(rzcollect(:,probeidx));
-            % all original cluster xyz loc for the probe aligned
-            xyzcoord{probeidx}=cell2mat(aligedcollect(:,probeidx));
+        aligedcollect=reshape([aligned_cluster_pts{:}]',n_probe,n_cluster)';
+        
+        %1st transform = parallel transform
+        %2nd transform = orthogonal transform
+        for transidx=0:n_transform
+            % set plots to hold on, except rgb image
+            for subplotidx=1:plotsize(2)
+                if subplotidx~=2
+                    subplot(plotsize(1),plotsize(2),subplotidx+transidx*plotsize(2));cla;hold on;
+                end
+            end
+            if transidx==0
+                % original location
+                % all original cluster xyz loc for the probe aligned
+                for probeidx=1:n_probe
+                    xyzcoord{probeidx}=cell2mat(aligedcollect(:,probeidx));
+                    % only get the ones in the cube
+                    xyzcoord{probeidx}=xyzcoord{probeidx}((abs(xyzcoord{probeidx}(:,1))<=prox_dist)&(abs(xyzcoord{probeidx}(:,2))<=prox_dist)&(abs(xyzcoord{probeidx}(:,3))<=prox_dist),1:3);
+                end
+                % work out synapse edge using parallel transform
+                zsigma=[nsig*std(xyzcoord{synapsepair(1)}(:,3));nsig*std(xyzcoord{synapsepair(2)}(:,3))];% in z axis
+                ysigma=[nsig*std(xyzcoord{synapsepair(1)}(:,2));nsig*std(xyzcoord{synapsepair(2)}(:,2))];% in y axis
+                zsminmax=max(zsigma(:));
+                ysminmax=max(ysigma(:));
+                scalemin=min(cell2mat(xyzcoord'));
+                scalemax=max(cell2mat(xyzcoord'));
+                for probeidx=1:n_probe
+                    subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
+                    scatter3(xyzcoord{probeidx}(:,1),xyzcoord{probeidx}(:,2),xyzcoord{probeidx}(:,3),1,probecolour(probeidx),'.');
+                    % rgb colour channel
+                    [xy_ch{probeidx},~]=hist3(xyzcoord{probeidx}(:,1:2),{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                    
+                    %preserving x dim so that pre and post side are
+                    %maintained!! remember this for subsequent calculations
+                    % x distance
+                    dist=xyzcoord{probeidx}(:,1);
+                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                    c=e(1:end-1)+dr/2;
+                    %correction for rectangular slab volume
+                    deltaA=dr*(2*prox_dist)^2;
+                    n=n./deltaA;
+                    subplot(plotsize(1),plotsize(2),3+transidx*plotsize(2));
+                    plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                    
+                    % radial distance | xyz distance to origin
+                    dist=sqrt(sum(xyzcoord{probeidx}.^2,2)).*sign(sign(xyzcoord{probeidx}(:,1))+0.5);
+                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                    c=e(1:end-1)+dr/2;
+                    % correctin for spherical shell volume, but only half
+                    % shell for polarity preservation in x
+                    deltaA=0.5*(4/3)*pi*dr*(3*c.^2+3*dr*abs(c)+dr^2);
+                    n=n./deltaA;
+                    subplot(plotsize(1),plotsize(2),4+transidx*plotsize(2));
+                    plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                    
+                    % edge distance (depending on sminmax
+                    % cutoff in r(sminmax)
+                    % calculate radial distance to edge from selected points
+                    % histogram of edge distance
+                    subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
+                    %plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                end
+                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
+                % plot estimated synapse
+                fz=@(t)zsminmax*sin(t);fy=@(t)ysminmax*cos(t);fx=@(t)0*t;
+                t = linspace(0,2*pi,101);
+                line(fx(t),fy(t),fz(t),'Color','k','LineWidth',5);
+                %set plot scatter properties
+                axis 'square';grid minor;xlabel('x');ylabel('y');zlabel('z');
+                title(sprintf('w_{synapse} from cluster %g s.f. = %g|%gnm',nsig,1e3*zsminmax*2,1e3*ysminmax*2));
+                set(gca,'Tag','synapse_xyz_scatter');
+                % transform combined rgbimage
+                subplot(plotsize(1),plotsize(2),2+transidx*plotsize(2));
+                rgbimg=cat(3,xy_ch{rgbidx(1)}./max(xy_ch{rgbidx(1)}(:)),xy_ch{rgbidx(2)}./max(xy_ch{rgbidx(2)}(:)),xy_ch{rgbidx(3)}./max(xy_ch{rgbidx(3)}(:)));
+                himage=image(imrotate(rgbimg,90));axis square;title(sprintf('dr=%g',dr));
+                set(gca,'XTickLabel',[],'YTickLabel',[]);
+                xlabel('x');ylabel('y');
+                set(gca,'Tag','synrgbimg');
+                
+                %set plot r distance plot properties
+                subplot(plotsize(1),plotsize(2),3+transidx*plotsize(2));
+                % plot synpase size for illustration
+                plot([-zsminmax,zsminmax],[100,100],'k-','LineWidth',5);
+                set(gca,'YScale','linear');
+                axis square;grid minor;xlabel('x_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
+                set(gca,'Tag','synapse_z_hist');
+                
+                %set plot r distance plot properties
+                subplot(plotsize(1),plotsize(2),4+transidx*plotsize(2));
+                plot([-ysminmax,ysminmax],[100,100],'k-','LineWidth',5);
+                set(gca,'YScale','linear');
+                axis square;grid minor;xlabel('xyz_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
+                set(gca,'Tag','synapse_xyz_hist');
+                
+                %set plot edge distance plot properties
+                subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
+                set(gca,'YScale','linear');
+                axis square;grid minor;xlabel('edge_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
+                set(gca,'Tag','synapse_edge_hist');
+            else
+                % transformed location
+                rzcollect=reshape([trans_cluster_pts{:,transidx}]',n_probe,n_cluster)';
+                for probeidx=1:n_probe
+                    % all cluster transformed loc for the probe
+                    rzcoord{probeidx}=cell2mat(rzcollect(:,probeidx)); %#ok<*AGROW>
+                end
+                scalemin=min(cell2mat(rzcoord'));
+                scalemax=max(cell2mat(rzcoord'));
+                % going through each probe and calculate and plot
+                for probeidx=1:n_probe
+                    subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
+                    scatter(rzcoord{probeidx}(:,1),rzcoord{probeidx}(:,2),1,probecolour(probeidx),'.');
+                    
+                    % rgb colour channel
+                    [rz_ch{probeidx},~]=hist3(rzcoord{probeidx},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                    
+                    %preserving r dim so that pre and post side are
+                    %maintained!! remember this for subsequent calculations
+                    % r distance
+                    dist=rzcoord{probeidx}(:,1);
+                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                    c=e(1:end-1)+dr/2;
+                    %correction for theta collapse in theta/r/z coord, can be derived from cylindrical jacobian
+                    %prox_dist is range(z)
+                    %0.5 because of polarity preservation, so only half
+                    deltaA=0.5*(2*pi*prox_dist)*dr*(dr+2*abs(c));
+                    n=n./deltaA;
+                    subplot(plotsize(1),plotsize(2),3+transidx*plotsize(2));
+                    plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                    
+                    % radial distance | rz distance to origin
+                    dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(sign(rzcoord{probeidx}(:,1))+0.5);
+                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                    c=e(1:end-1)+dr/2;
+                    % correction
+                    deltaA=0.5*(4/3)*pi*dr*(3*c.^2+3*dr*abs(c)+dr^2);%spherical
+                    n=n./deltaA;
+                    subplot(plotsize(1),plotsize(2),4+transidx*plotsize(2));
+                    plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                    
+                    % edge distance (depending on sminmax
+                    % cutoff in r(sminmax)
+                    % calculate radial distance to edge from selected points
+                    % histogram of edge distance
+                    subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
+                    
+                    %plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                end
+                %------------
+                % scatter synapse edge points on scatter plot
+                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
+                % work out synapse edge using parallel transform
+                switch transidx
+                    case 1
+                        sigma=[nsig*std(rzcoord{synapsepair(1)}(:,2));nsig*std(rzcoord{synapsepair(2)}(:,2))];
+                        sminmax=max(sigma(:));
+                        scatter([0;0],[-sminmax,sminmax],30,'k','s','MarkerFaceColor','k');
+                    case 2
+                        sigma=[nsig*std(rzcoord{synapsepair(1)}(:,1));nsig*std(rzcoord{synapsepair(2)}(:,1))];
+                        sminmax=max(sigma(:));
+                        scatter([-sminmax,sminmax],[0,0],30,'k','s','MarkerFaceColor','k');
+                end
+                %set plot scatter properties
+                axis 'square';grid minor;xlabel('r');ylabel('z');
+                title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*sminmax*2));
+                set(gca,'Tag','synapse_rz_scatter');
+                
+                % transform combined rgbimage
+                subplot(plotsize(1),plotsize(2),2+transidx*plotsize(2));
+                rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
+                himage=image(imrotate(rgbimg,90));axis square;title(sprintf('dr=%g',dr));
+                set(gca,'XTickLabel',[],'YTickLabel',[]);
+                set(gca,'Tag','synrgbimg');
+                
+                %set plot r distance plot properties
+                subplot(plotsize(1),plotsize(2),3+transidx*plotsize(2));
+                % plot synpase size for illustration
+                plot([-sminmax,sminmax],[100,100],'k-','LineWidth',5);
+                set(gca,'YScale','linear');
+                axis square;grid minor;xlabel('r_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
+                set(gca,'Tag','synapse_r_hist');
+                
+                %set plot r distance plot properties
+                subplot(plotsize(1),plotsize(2),4+transidx*plotsize(2));
+                plot([-sminmax,sminmax],[100,100],'k-','LineWidth',5);
+                set(gca,'YScale','linear');
+                axis square;grid minor;xlabel('rz_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
+                set(gca,'Tag','synapse_rz_hist');
+                
+                %set plot edge distance plot properties
+                subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
+                set(gca,'YScale','linear');
+                axis square;grid minor;xlabel('edge_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
+                set(gca,'Tag','synapse_edge_hist');
+            end
         end
-        % work out synapse edge using parallel transform
-        sigma=[nsig*std(rzcoord{1}(:,2));1.0*std(rzcoord{2}(:,2))];
-        zminmax=[-sigma;sigma];
-        zminmax=[min(zminmax(:)),max(zminmax(:))];
-        scalemin=min(cell2mat(rzcoord'));
-        scalemax=max(cell2mat(rzcoord'));
-        % scatter all points
-        subplot(2,3,3);cla;hold on;
-        plot(zminmax,[0,0],'k-','LineWidth',5);
-        subplot(2,3,1);cla;hold on;
-        scatter([0;0],zminmax,30,'k','s','MarkerFaceColor','k');
-        for probeidx=1:n_probe
-            subplot(2,3,1);
-            scatter(rzcoord{probeidx}(:,1),rzcoord{probeidx}(:,2),5,probecolour(probeidx),'.');
-            %preserving r dim so that pre and post side are
-            %maintained
-            dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(rzcoord{probeidx}(:,1));
-            [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
-            c=e(1:end-1)+dr/2;
-            deltaA=pi*(2*prox_dist)*dr*(2*abs(c)+dr);
-            n=n./deltaA;
-            subplot(2,3,3);
-            plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
-            
-            [rz_ch{probeidx},~]=hist3(rzcoord{probeidx},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-        end
-        subplot(2,3,1);
-        axis 'square';grid minor;xlabel('r');ylabel('z');
-        title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*abs(diff(zminmax))));
-        set(gca,'Tag','synapse_rz_scatter');
-        subplot(2,3,3);
-        grid minor;xlabel('dist_{rz}');ylabel('\rho_{localisation}(\mum^{-3})');
-        % parallel transform combined rgbimage
-        subplot(2,3,2);set(gca,'Tag','synrgbimg');
-        rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
-        himage=image(imrotate(rgbimg,90));axis square;title(sprintf('dr=%g',dr));
-        set(himage,'UserData',dr);
-        
-        %orthogonal transform
-        transidx=2;%1st transform
-        rzcollect=reshape([trans_cluster_pts{:,transidx}]',n_probe,n_cluster)';
-        for probeidx=1:n_probe
-            % all cluster transformed loc for the probe
-            rzcoord{probeidx}=cell2mat(rzcollect(:,probeidx));
-        end
-        % work out synapse edge using parallel transform
-        sigma=[nsig*std(rzcoord{1}(:,1));1.0*std(rzcoord{2}(:,1))];
-        rminmax=[-sigma;sigma];
-        rminmax=[min(rminmax(:)),max(rminmax(:))];
-        scalemin=min(cell2mat(rzcoord'));
-        scalemax=max(cell2mat(rzcoord'));
-        % scatter all points
-        subplot(2,3,6);cla;hold on;
-        plot(rminmax,[0,0],'k-','LineWidth',5);
-        subplot(2,3,4);cla;hold on;
-        scatter(rminmax,[0;0],30,'k','s','MarkerFaceColor','k');
-        for probeidx=1:n_probe
-            subplot(2,3,4);
-            scatter(rzcoord{probeidx}(:,1),rzcoord{probeidx}(:,2),5,probecolour(probeidx),'.');
-            %preserving z dim so that pre and post side are
-            %maintained
-            dist=sqrt(sum(rzcoord{probeidx}.^2,2)).*sign(rzcoord{probeidx}(:,1));
-            [n,e]=histcounts(dist,-prox_dist:dr:prox_dist);
-            c=e(1:end-1)+dr/2;
-            deltaA=pi*(2*prox_dist)*dr*(2*abs(c)+dr);
-            n=n./deltaA;
-            subplot(2,3,6);
-            plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
-            
-            [rz_ch{probeidx},~]=hist3(rzcoord{probeidx},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-        end
-        subplot(2,3,4);
-        axis 'square';grid minor;xlabel('r');ylabel('z');
-        title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*abs(diff(rminmax))));
-        set(gca,'Tag','synapse_rz_scatter');
-        subplot(2,3,6);
-        grid minor;xlabel('dist_{rz}');ylabel('\rho_{localisation}(\mum^{-3})');
-        % parallel transform combined rgbimage
-        subplot(2,3,5);set(gca,'Tag','synrgbimg');
-        rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
-        himage=image(imrotate(rgbimg,90));axis square;title(sprintf('dr=%g',dr));
-        set(himage,'UserData',dr);
-        
-        
-        
-        
-        
-        
-        
         %-----------------
-        
-        %{
-        % set userdata for interactive plotting
-        fh_tot.UserData.dr=dr;
-        fh_tot.UserData.zminmax=zminmax;
-        
-        %--------------------
-        % plot cylindrical r_distance histogram
-        subplot(2,3,1);cla;hold on;
-        for probeidx=1:numel(rz_tot)
-            [n,e]=histcounts(rz_tot{probeidx}(:,1),min(rz_tot{probeidx}(:,1)):dr:max(rz_tot{probeidx}(:,1)));
-            if ~isempty(find(probeidx==synapsepair))
-                deltaA=dr*radius;
-            else
-                deltaA=(dr*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
-            end
-            n=n./deltaA;
-            e=e(1:end-1)+dr/2;
-            plot(e,n,'LineWidth',2,'Color',probecolour(probeidx));
-        end
-        grid minor;
-        set(gca,'YScale','linear');
-        xlabel('r_{cylindrical}');ylabel('\rho_{localisation}(\mum^{-2})');
-        
-        %--------------------
-        % plot cylindrical z_distance histogram
-        subplot(2,3,2);cla;hold on;
-        for probeidx=1:numel(rz_tot)
-            [n,e]=histcounts(rz_tot{probeidx}(:,2),min(rz_tot{probeidx}(:,2)):dz:max(rz_tot{probeidx}(:,2)));
-            if ~isempty(find(probeidx==synapsepair))
-                % only record synapse pair probe values for estimating
-                % synaptic edges
-                sigma=nsig*std(rz_tot{probeidx}(:,2));
-                zminmax=[zminmax,[-sigma;sigma]];
-                deltaA=dz*radius;
-            else
-                % correction for distribution because of spherical cutoff
-                % in cylindrical coordinate for glt1
-                deltaA=(dz*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
-            end
-            n=n./deltaA;
-            e=e(1:end-1)+dz/2;
-            plot(e,n,'LineWidth',2,'Color',probecolour(probeidx));
-        end
-        grid minor;
-        set(gca,'YScale','linear');
-        xlabel('z_{cylindrical}');ylabel('\rho_{localisation}(\mum^{-2})');
-        % work out estimated synapse edges
-        zminmax=[min(zminmax(:)),max(zminmax(:))];
-        fh_tot.UserData.zminmax=zminmax;
-        
-        %--------------------
-        % plot 2D scatter of all localisations with estimated synapse edges
-        subplot(2,3,3);cla;
-        % plot synapse edges
-        temp=scatter([0;0],zminmax,300,'k','.');hold on;
-        temp.Tag='synapse_edge';
-        % plot all probes
-        for probeidx=1:numel(rz_tot)
-            scatter(rz_tot{probeidx}(:,1),rz_tot{probeidx}(:,2),5,probecolour(probeidx),'.');
-        end
-        axis 'square';grid minor;xlabel('r');ylabel('z');
-        title(sprintf('F1/F2/F3/F4 to toggle scatter'));
-        set(gca,'Tag','Synapse_tot_scatter');
-        
-        %--------------------
-        % plot histogram of radial rz distance i.e. distance to the origin
-        subplot(2,3,4);cla;hold on;
-        for probeidx=1:numel(rz_tot)
-            % sign preserving distances
-            rzdist=sqrt(sum(rz_tot{probeidx}.^2,2)).*sign(rz_tot{probeidx}(:,1));
-            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
-            deltaA=pi*dr*(2*abs(e(1:end-1))+dr);
-            e=e(1:end-1)+dr/2;
-            n=n./deltaA;
-            plot(e,n,'LineWidth',2,'Color',probecolour(probeidx));
-        end
-        grid minor;
-        set(gca,'YScale','linear');
-        xlabel('Dist_{rz}');ylabel('\rho_{localisation}(\mum^{-2})');
-        
-        %--------------------
-        % plot distance to the within synapse width
-        subplot(2,3,5);hold on;
-        for probeidx=1:numel(rz_tot)
-        %{
-            syndist=[];rzdist=[];
-            syndist(:,1)=sqrt(sum(bsxfun(@minus,rz_tot{probeidx},[0,zminmax(1)]).^2,2));
-            syndist(:,2)=sqrt(sum(bsxfun(@minus,rz_tot{probeidx},[0,zminmax(2)]).^2,2));
-            syndist(:,3)=sqrt(sum(rz_tot{probeidx}.^2,2));
-            rzdist=min(syndist,[],2).*sign(rz_tot{probeidx}(:,1));
-            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
-            e=e(1:end-1)+dr/2;
-            plot(e,n,'LineWidth',2,'Color',probecolour(probeidx));
-        %}
-            % central
-            dist=rz_tot{probeidx}((rz_tot{probeidx}(:,2)<max(zminmax)&rz_tot{probeidx}(:,2)>min(zminmax)),1);
-            [n,e]=histcounts(dist,min(dist):dr:max(dist));
-            e=e(1:end-1)+dr/2;
-            plot(e,n,'LineWidth',2,'Color',probecolour(probeidx));
-        end
-        title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*abs(diff(zminmax))));
-        grid minor;
-        set(gca,'YScale','linear');
-        xlabel('Dist_{synapse}');ylabel('N_{localisation}');
-        
-        %--------------------
-        % plot rgb image of the synapse
-        subplot(2,3,6);set(gca,'Tag','synrgbimg');
-        scalemin=min([min(rz_tot{1},[],1);min(rz_tot{2},[],1);min(rz_tot{3},[],1)],[],1);
-        scalemax=max([max(rz_tot{1},[],1);max(rz_tot{2},[],1);max(rz_tot{3},[],1)],[],1);
-        [rz_ch{1},~]=hist3(rz_tot{1},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-        [rz_ch{2},~]=hist3(rz_tot{2},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-        [rz_ch{3},~]=hist3(rz_tot{3},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-        rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
-        himage=image(imrotate(rgbimg,90));axis square;
-        xlabel('r');ylabel('z');
-        set(himage,'UserData',dr);
-        % print out dr value
-        title(sprintf('dr=%g',dr));
-        %}
     end
 else
     %action cancelled
@@ -427,12 +410,17 @@ end
                 % plot scatter for synapse analysis subplot
                 hplot=gca;
                 switch hplot.Tag
-                    case {'synapse_rz_scatter'}
-                        switch hplot.Children(str2double(eventkey.Key(2))).Visible
-                            case 'off'
-                                hplot.Children(str2double(eventkey.Key(2))).Visible='on';
-                            case 'on'
-                                hplot.Children(str2double(eventkey.Key(2))).Visible='off';
+                    case {'synapse_xyz_scatter','synapse_rz_scatter',...
+                            'synapse_r_hist','synapse_rz_hist',...
+                            'synapse_x_hist','synapse_xyz_hist'}
+                        keyidx=str2double(eventkey.Key(2));
+                        if keyidx<=numel(hplot.Children)
+                            switch hplot.Children(keyidx).Visible
+                                case 'off'
+                                    hplot.Children(keyidx).Visible='on';
+                                case 'on'
+                                    hplot.Children(keyidx).Visible='off';
+                            end
                         end
                 end
             case {'home','end','pagedown','pageup'}
@@ -440,7 +428,7 @@ end
                 switch hplot.Tag
                     case 'Synapse_tot'
                         dr=hplot.UserData.dr;
-                        zminmax=hplot.UserData.zminmax;
+                        %sminmax=hplot.UserData.sminmax;
                         switch eventkey.Key
                             case 'home'
                                 dr=minres;
@@ -451,112 +439,119 @@ end
                             case 'pagedown'
                                 dr=min(dr+dres,maxres);
                         end
-                        hplot.UserData.dr=dr;
-                        
-                        %----------------------------------
-                        % get scatter data in reverse to plot order
-                        subplot(2,3,3);temp=gca;
-                        rz_tot{3}=[temp.Children(1).XData(:),temp.Children(1).YData(:)];
-                        rz_tot{2}=[temp.Children(2).XData(:),temp.Children(2).YData(:)];
-                        rz_tot{1}=[temp.Children(3).XData(:),temp.Children(3).YData(:)];
-                        % recalcute scaling
-                        scalemin=min([min(rz_tot{1},[],1);min(rz_tot{2},[],1);min(rz_tot{3},[],1)],[],1);
-                        scalemax=max([max(rz_tot{1},[],1);max(rz_tot{2},[],1);max(rz_tot{3},[],1)],[],1);
                         dz=dr;
-                        
-                        %--------------------
-                        % plot cylindrical r_distance histogram
-                        subplot(2,3,1);lineplot=get(gca);
-                        for pidx=1:numel(rz_tot)
-                            [n,e]=histcounts(rz_tot{pidx}(:,1),min(rz_tot{pidx}(:,1)):dr:max(rz_tot{pidx}(:,1)));
-                            if ~isempty(find(pidx==synapsepair))
-                                deltaA=dr*radius;
+                        hplot.UserData.dr=dr;
+                        for Tidx=0:n_transform
+                            % get plot handle
+                            scatterplot=subplot(plotsize(1),plotsize(2),1+Tidx*plotsize(2));
+                            rgbimgplot=subplot(plotsize(1),plotsize(2),2+Tidx*plotsize(2));
+                            subplot(plotsize(1),plotsize(2),3+Tidx*plotsize(2));
+                            lineplot1=get(gca,'Children');lineplot1=flipud(lineplot1);
+                            subplot(plotsize(1),plotsize(2),4+Tidx*plotsize(2));
+                            lineplot2=get(gca,'Children');lineplot2=flipud(lineplot2);
+                            subplot(plotsize(1),plotsize(2),5+Tidx*plotsize(2));
+                            lineplot3=get(gca,'Children');lineplot3=flipud(lineplot3);
+                            if Tidx==0
+                                %get processed scatter points
+                                for pidx=1:n_probe
+                                    plotidx=n_probe-pidx+2;
+                                    xyz_pts{pidx}=[scatterplot.Children(plotidx).XData(:),...
+                                        scatterplot.Children(plotidx).YData(:),...
+                                        scatterplot.Children(plotidx).ZData(:)];
+                                end
+                                % recalculate and plot
+                                scalemin=min(cell2mat(xyz_pts'));
+                                scalemax=max(cell2mat(xyz_pts'));
+                                for pidx=1:n_probe
+                                    plotidx=pidx;
+                                    % rgb colour channel
+                                    [xy_ch{pidx},~]=hist3(xyz_pts{pidx}(:,1:2),{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                                    
+                                    %preserving x dim so that pre and post side are
+                                    %maintained!! remember this for subsequent calculations
+                                    % x distance
+                                    dist=xyz_pts{pidx}(:,1);
+                                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                                    c=e(1:end-1)+dr/2;
+                                    %correction for rectangular slab volume
+                                    deltaA=dr*(2*prox_dist)^2;
+                                    n=n./deltaA;
+                                    set(lineplot1(plotidx),'XData',c,'YData',n);
+                                    
+                                    % radial distance | xyz distance to origin
+                                    dist=sqrt(sum(xyz_pts{pidx}.^2,2)).*sign(sign(xyz_pts{pidx}(:,1))+0.5);
+                                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                                    c=e(1:end-1)+dr/2;
+                                    % correctin for spherical shell volume, but only half
+                                    % shell for polarity preservation in x
+                                    deltaA=0.5*(4/3)*pi*dr*(3*c.^2+3*dr*abs(c)+dr^2);
+                                    n=n./deltaA;
+                                    set(lineplot2(plotidx),'XData',c,'YData',n);
+                                    
+                                    % edge distance (depending on sminmax
+                                    % cutoff in r(sminmax)
+                                    % calculate radial distance to edge from selected points
+                                    % histogram of edge distance
+                                    
+                                    % set(lineplot3(plotidx),'XData',c,'YData',n);
+                                end
+                                % transform combined rgbimage
+                                rgbimg=cat(3,xy_ch{rgbidx(1)}./max(xy_ch{rgbidx(1)}(:)),xy_ch{rgbidx(2)}./max(xy_ch{rgbidx(2)}(:)),xy_ch{rgbidx(3)}./max(xy_ch{rgbidx(3)}(:)));
+                                set(rgbimgplot.Children,'CData',imrotate(rgbimg,90));
+                                title(rgbimgplot,sprintf('dr=%g',dr));
+                                axis(rgbimgplot,'tight');
                             else
-                                deltaA=(dr*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
+                                % get transformed scatter points
+                                %rz_pts{:,transidx}=[temp.Children(n_probe-pidx+1).XData(:),temp.Children(n_probe-pidx+1).YData(:)];
+                                %get processed scatter points
+                                for pidx=1:n_probe
+                                    plotidx=n_probe-pidx+2;
+                                    rz_pts{pidx}=[scatterplot.Children(plotidx).XData(:),...
+                                        scatterplot.Children(plotidx).YData(:)];
+                                end
+                                % recalculate and plot
+                                scalemin=min(cell2mat(rz_pts'));
+                                scalemax=max(cell2mat(rz_pts'));
+                                for pidx=1:n_probe
+                                    plotidx=pidx;
+                                    % rgb colour channel
+                                    [rz_ch{pidx},~]=hist3(rz_pts{pidx},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
+                                    
+                                    %preserving r dim so that pre and post side are
+                                    %maintained!! remember this for subsequent calculations
+                                    % r distance
+                                    dist=rz_pts{pidx}(:,1);
+                                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                                    c=e(1:end-1)+dr/2;
+                                    %correction for theta collapse in theta/r/z coord, can be derived from cylindrical jacobian
+                                    %prox_dist is range(z)
+                                    %0.5 because of polarity preservation, so only half
+                                    deltaA=0.5*(2*pi*prox_dist)*dr*(dr+2*abs(c));
+                                    n=n./deltaA;
+                                    set(lineplot1(plotidx),'XData',c,'YData',n);
+                                    
+                                    % radial distance | rz distance to origin
+                                    dist=sqrt(sum(rz_pts{pidx}.^2,2)).*sign(sign(rz_pts{pidx}(:,1))+0.5);
+                                    [n,e]=histcounts(dist,[fliplr(0:-dr:-prox_dist),dr:dr:prox_dist]);
+                                    c=e(1:end-1)+dr/2;
+                                    % correction
+                                    deltaA=0.5*(4/3)*pi*dr*(3*c.^2+3*dr*abs(c)+dr^2);
+                                    n=n./deltaA;
+                                    set(lineplot2(plotidx),'XData',c,'YData',n);
+                                    
+                                    % edge distance (depending on sminmax
+                                    % cutoff in r(sminmax)
+                                    % calculate radial distance to edge from selected points
+                                    % histogram of edge distance
+                                    % set(lineplot3(plotidx),'XData',c,'YData',n);
+                                end
+                                % transform combined rgbimage
+                                rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
+                                set(rgbimgplot.Children,'CData',imrotate(rgbimg,90));
+                                title(rgbimgplot,sprintf('dr=%g',dr));
+                                axis(rgbimgplot,'tight');
                             end
-                            n=n./deltaA;
-                            e=e(1:end-1)+dr/2;
-                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
                         end
-                        
-                        %--------------------
-                        % plot cylindrical z_distance histogram
-                        subplot(2,3,2);lineplot=get(gca);
-                        for pidx=1:numel(rz_tot)
-                            [n,e]=histcounts(rz_tot{pidx}(:,2),min(rz_tot{pidx}(:,2)):dz:max(rz_tot{pidx}(:,2)));
-                            if ~isempty(find(pidx==synapsepair))
-                                deltaA=dz*radius;
-                            else
-                                deltaA=(dz*((radius^2-e(1:end-1).^2).^0.5+(radius^2-e(2:end).^2).^0.5));
-                            end
-                            n=n./deltaA;
-                            e=e(1:end-1)+dz/2;
-                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
-                        end
-                        
-                        %--------------------
-                        % alter synapse edge
-                        %subplot(2,3,3);temp=gca;
-                        %set(temp.Children(4),'YData',zminmax);
-                        %--------------------
-                        % plot histogram of radial rz distance i.e. distance to the origin
-                        subplot(2,3,4); lineplot=get(gca);
-                        for pidx=1:numel(rz_tot)
-                            % sign preserving distances
-                            rzdist=sqrt(sum(rz_tot{pidx}.^2,2)).*sign(rz_tot{pidx}(:,1));
-                            [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
-                            deltaA=pi*dr*(2*abs(e(1:end-1))+dr);
-                            e=e(1:end-1)+dr/2;
-                            n=n./deltaA;
-                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
-                        end
-                        
-                        %--------------------
-                        % plot distance to the nearest synapse edge
-                        subplot(2,3,5);lineplot=get(gca);
-                        for pidx=1:numel(rz_tot)
-                            %{
-                            % above
-                            pt_sec1=rz_tot{pidx}(rz_tot{pidx}(:,2)>=max(zminmax),:);
-                            dist_sec1=sqrt(sum(bsxfun(@minus,pt_sec1,[0,max(zminmax)]).^2,2)).*sign(pt_sec1(:,1));
-                            % central
-                            dist_sec2=rz_tot{pidx}((rz_tot{pidx}(:,2)<max(zminmax)&rz_tot{pidx}(:,2)>min(zminmax)),1);
-                            % below
-                            pt_sec3=rz_tot{pidx}(rz_tot{pidx}(:,2)<=min(zminmax),:);
-                            dist_sec3=sqrt(sum(bsxfun(@minus,pt_sec3,[0,min(zminmax)]).^2,2)).*sign(pt_sec3(:,1));
-                            % combined
-                            rzdist=[dist_sec1;dist_sec2;dist_sec3];
-                            %}
-                            %{
-                                                        syndist=[];rzdist=[];
-                             syndist(:,1)=sqrt(sum(bsxfun(@minus,rz_tot{pidx},[0,zminmax(1)]).^2,2));
-                            syndist(:,2)=sqrt(sum(bsxfun(@minus,rz_tot{pidx},[0,zminmax(2)]).^2,2));
-                            syndist(:,3)=sqrt(sum(rz_tot{pidx}.^2,2));
-                            rzdist=min(syndist,[],2).*sign(rz_tot{pidx}(:,1));
-                             [n,e]=histcounts(rzdist,min(rzdist):dr:max(rzdist));
-                            %deltaA=pi*dr*(2*abs(e(1:end-1))+dr);
-                            %n=n./deltaA;
-                            e=e(1:end-1)+dr/2;
-                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
-                            %}
-                            % central
-                            dist_sec=rz_tot{pidx}((rz_tot{pidx}(:,2)<max(zminmax)&rz_tot{pidx}(:,2)>min(zminmax)),1);
-                            [n,e]=histcounts(dist_sec,min(dist_sec):dr:max(dist_sec));
-                            e=e(1:end-1)+dr/2;
-                            set(lineplot.Children(numel(rz_tot)+1-pidx),'XData',e,'YData',n);
-                        end
-                        
-                        %----------------------------------
-                        subplot(2,3,6);
-                        % calculate rgb images
-                        [rz_ch{1},~]=hist3(rz_tot{1},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-                        [rz_ch{2},~]=hist3(rz_tot{2},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-                        [rz_ch{3},~]=hist3(rz_tot{3},{scalemin(1):dr:scalemax(1),scalemin(2):dz:scalemax(2)});
-                        rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));
-                        himage=get(gca,'Children');
-                        set(himage,'CData',imrotate(rgbimg,90));axis tight;
-                        % print out dr value
-                        title(sprintf('dr=%g',dr));
                 end
         end
     end
