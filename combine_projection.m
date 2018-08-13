@@ -131,7 +131,7 @@ if ischar(pathname)
                     %plane rotation to match xz plane to
                     %synapse line parallel to separation plane
                     rot_trans=zeros(4,4);rot_trans(4,4)=1;
-                    rot_trans(1:3,1:3)=([pnorm_synapse',pnorm_p3',pnorm_p2']);%rotation to x,y,z
+                    rot_trans(1:3,1:3)=([pnorm_synapse',pnorm_p2',pnorm_p3']);%rotation to x,y,z
                     line_synpara_TM=shift_trans*rot_trans;
                     %plane rotation to match xz plane to
                     %synapse line parallel to p2 plane
@@ -141,8 +141,6 @@ if ischar(pathname)
                     %transform points to new local coordinate
                     %in line_synpara
                     aligned_cluster_pts{clusteridx+appendidx}=cellfun(@(x)[x,ones(size(x,1),1)]*line_synpara_TM,cluster_pts(clusteridx,1:3),'UniformOutput',false);
-                    %transform points to new local coordinate
-                    %in line_synortho is just swap x and z
                     
                     %transform from cart to cylindrical
                     %use angle to separate two groups in term
@@ -156,6 +154,8 @@ if ischar(pathname)
                     % maintain left/right polarity using theta value
                     trans_cluster_pts{clusteridx+appendidx,1}=cellfun(@(id,a,b,c)[((abs(a(id))<=pi/2)*2-1).*b(id),c(id)],in_rzvol_pts,theta,r,z,'UniformOutput',false);%0-pi/2=+ve
                     
+                    %transform points to new local coordinate
+                    %in line_synortho is just swap x and z
                     % second t,r,z is ortho do the same for orthogonal transform
                     [theta,r,z]=cellfun(@(y)cart2pol(y(:,3),y(:,2),y(:,1)),aligned_cluster_pts{clusteridx+appendidx},'UniformOutput',false);
                     in_rzvol_pts=cellfun(@(m,n)abs(m)<=prox_dist&abs(n)<=prox_dist,r,z,'UniformOutput',false);
@@ -221,6 +221,11 @@ if ischar(pathname)
                 ysigma=[nsig*std(xyzcoord{synapsepair(1)}(:,2));nsig*std(xyzcoord{synapsepair(2)}(:,2))];% in y axis
                 zsminmax=max(zsigma(:));
                 ysminmax=max(ysigma(:));
+                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
+                % plot estimated synapse
+                fz=@(t)zsminmax*sin(t);fy=@(t)ysminmax*cos(t);fx=@(t)0*t;
+                t = linspace(0,2*pi,101);
+                line(fx(t),fy(t),fz(t),'Color','k','LineWidth',5);
                 scalemin=min(cell2mat(xyzcoord'));
                 scalemax=max(cell2mat(xyzcoord'));
                 for probeidx=1:n_probe
@@ -259,14 +264,10 @@ if ischar(pathname)
                     subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
                     %plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
                 end
-                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
-                % plot estimated synapse
-                fz=@(t)zsminmax*sin(t);fy=@(t)ysminmax*cos(t);fx=@(t)0*t;
-                t = linspace(0,2*pi,101);
-                line(fx(t),fy(t),fz(t),'Color','k','LineWidth',5);
                 %set plot scatter properties
+                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
                 axis 'square';grid minor;xlabel('x');ylabel('y');zlabel('z');
-                title(sprintf('w_{synapse} from cluster %g s.f. = %g|%gnm',nsig,1e3*zsminmax*2,1e3*ysminmax*2));
+                title(sprintf('w_{synapse} from cluster %g s.f. = %g(z)|%g(y)nm',nsig,1e3*zsminmax*2,1e3*ysminmax*2));
                 set(gca,'Tag','synapse_xyz_scatter');
                 % transform combined rgbimage
                 subplot(plotsize(1),plotsize(2),2+transidx*plotsize(2));
@@ -276,7 +277,7 @@ if ischar(pathname)
                 xlabel('x');ylabel('y');
                 set(gca,'Tag','synrgbimg');
                 
-                %set plot r distance plot properties
+                %set plot x distance plot properties
                 subplot(plotsize(1),plotsize(2),3+transidx*plotsize(2));
                 % plot synpase size for illustration
                 plot([-zsminmax,zsminmax],[100,100],'k-','LineWidth',5);
@@ -284,9 +285,10 @@ if ischar(pathname)
                 axis square;grid minor;xlabel('x_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
                 set(gca,'Tag','synapse_z_hist');
                 
-                %set plot r distance plot properties
+                %set plot xyz distance plot properties
                 subplot(plotsize(1),plotsize(2),4+transidx*plotsize(2));
                 plot([-ysminmax,ysminmax],[100,100],'k-','LineWidth',5);
+                ylim([100,max(ylim(gca))]);
                 set(gca,'YScale','linear');
                 axis square;grid minor;xlabel('xyz_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
                 set(gca,'Tag','synapse_xyz_hist');
@@ -303,6 +305,20 @@ if ischar(pathname)
                     % all cluster transformed loc for the probe
                     rzcoord{probeidx}=cell2mat(rzcollect(:,probeidx)); %#ok<*AGROW>
                 end
+                % scatter synapse edge points on scatter plot
+                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
+                % work out synapse edge using parallel transform
+                switch transidx
+                    case 1
+                        sigma=[nsig*std(rzcoord{synapsepair(1)}(:,2));nsig*std(rzcoord{synapsepair(2)}(:,2))];
+                        sminmax=max(sigma(:));
+                        scatter([0;0],[-sminmax,sminmax],30,'k','s','MarkerFaceColor','k');
+                    case 2
+                        sigma=[nsig*std(rzcoord{synapsepair(1)}(:,1));nsig*std(rzcoord{synapsepair(2)}(:,1))];
+                        sminmax=max(sigma(:));
+                        scatter([-sminmax,sminmax],[0,0],30,'k','s','MarkerFaceColor','k');
+                end
+                fh_tot.UserData.sminmax=sminmax;
                 scalemin=min(cell2mat(rzcoord'));
                 scalemax=max(cell2mat(rzcoord'));
                 % going through each probe and calculate and plot
@@ -341,25 +357,26 @@ if ischar(pathname)
                     % cutoff in r(sminmax)
                     % calculate radial distance to edge from selected points
                     % histogram of edge distance
+                    switch transidx
+                        case 1
+                            outsidesynvol=abs(rzcoord{probeidx}(:,2))>=sminmax&(abs(rzcoord{probeidx}(:,2))<=(prox_dist-sminmax));
+                            dist=sqrt(sum(bsxfun(@minus,abs(rzcoord{probeidx}(outsidesynvol,1:2)),[0,sminmax]).^2,2)).*sign(sign(rzcoord{probeidx}(outsidesynvol,2)));
+                        case 2
+                            outsidesynvol=abs(rzcoord{probeidx}(:,1))>=sminmax;
+                            dist=sqrt(sum(bsxfun(@minus,abs(rzcoord{probeidx}(outsidesynvol,1:2)),[sminmax,0]).^2,2)).*sign(sign(rzcoord{probeidx}(outsidesynvol,1)));
+                    end
+                    [n,e]=histcounts(dist,[fliplr(0:-dr:-(prox_dist-sminmax)),dr:dr:(prox_dist-sminmax)]);
+                    c=e(1:end-1)+dr/2;
+                    % correction
+                    deltaA=0.5*(4/3)*pi*dr*(3*c.^2+3*dr*abs(c)+dr^2);%spherical
+                    n=n./deltaA;
                     subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
-                    
-                    %plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
+                    plot(c,n,'LineWidth',2,'Color',probecolour(probeidx));
                 end
                 %------------
-                % scatter synapse edge points on scatter plot
-                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
-                % work out synapse edge using parallel transform
-                switch transidx
-                    case 1
-                        sigma=[nsig*std(rzcoord{synapsepair(1)}(:,2));nsig*std(rzcoord{synapsepair(2)}(:,2))];
-                        sminmax=max(sigma(:));
-                        scatter([0;0],[-sminmax,sminmax],30,'k','s','MarkerFaceColor','k');
-                    case 2
-                        sigma=[nsig*std(rzcoord{synapsepair(1)}(:,1));nsig*std(rzcoord{synapsepair(2)}(:,1))];
-                        sminmax=max(sigma(:));
-                        scatter([-sminmax,sminmax],[0,0],30,'k','s','MarkerFaceColor','k');
-                end
+                
                 %set plot scatter properties
+                subplot(plotsize(1),plotsize(2),1+transidx*plotsize(2));
                 axis 'square';grid minor;xlabel('r');ylabel('z');
                 title(sprintf('w_{synapse} from cluster %g s.f. = %gnm',nsig,1e3*sminmax*2));
                 set(gca,'Tag','synapse_rz_scatter');
@@ -379,15 +396,17 @@ if ischar(pathname)
                 axis square;grid minor;xlabel('r_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
                 set(gca,'Tag','synapse_r_hist');
                 
-                %set plot r distance plot properties
+                %set plot rz distance plot properties
                 subplot(plotsize(1),plotsize(2),4+transidx*plotsize(2));
                 plot([-sminmax,sminmax],[100,100],'k-','LineWidth',5);
+                ylim([100,max(ylim(gca))]);
                 set(gca,'YScale','linear');
                 axis square;grid minor;xlabel('rz_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
                 set(gca,'Tag','synapse_rz_hist');
                 
                 %set plot edge distance plot properties
                 subplot(plotsize(1),plotsize(2),5+transidx*plotsize(2));
+                plot([-sminmax,sminmax],[100,100],'k-','LineWidth',5);
                 set(gca,'YScale','linear');
                 axis square;grid minor;xlabel('edge_{dist}');ylabel('\rho_{localisation}(\mum^{-3})');
                 set(gca,'Tag','synapse_edge_hist');
@@ -412,7 +431,8 @@ end
                 switch hplot.Tag
                     case {'synapse_xyz_scatter','synapse_rz_scatter',...
                             'synapse_r_hist','synapse_rz_hist',...
-                            'synapse_x_hist','synapse_xyz_hist'}
+                            'synapse_x_hist','synapse_xyz_hist',...
+                            'synapse_edge_hist'}
                         keyidx=str2double(eventkey.Key(2));
                         if keyidx<=numel(hplot.Children)
                             switch hplot.Children(keyidx).Visible
@@ -441,6 +461,7 @@ end
                         end
                         dz=dr;
                         hplot.UserData.dr=dr;
+                        sminmax=fh_tot.UserData.sminmax;
                         for Tidx=0:n_transform
                             % get plot handle
                             scatterplot=subplot(plotsize(1),plotsize(2),1+Tidx*plotsize(2));
@@ -454,7 +475,7 @@ end
                             if Tidx==0
                                 %get processed scatter points
                                 for pidx=1:n_probe
-                                    plotidx=n_probe-pidx+2;
+                                    plotidx=n_probe-pidx+1;
                                     xyz_pts{pidx}=[scatterplot.Children(plotidx).XData(:),...
                                         scatterplot.Children(plotidx).YData(:),...
                                         scatterplot.Children(plotidx).ZData(:)];
@@ -505,7 +526,7 @@ end
                                 %rz_pts{:,transidx}=[temp.Children(n_probe-pidx+1).XData(:),temp.Children(n_probe-pidx+1).YData(:)];
                                 %get processed scatter points
                                 for pidx=1:n_probe
-                                    plotidx=n_probe-pidx+2;
+                                    plotidx=n_probe-pidx+1;
                                     rz_pts{pidx}=[scatterplot.Children(plotidx).XData(:),...
                                         scatterplot.Children(plotidx).YData(:)];
                                 end
@@ -543,7 +564,20 @@ end
                                     % cutoff in r(sminmax)
                                     % calculate radial distance to edge from selected points
                                     % histogram of edge distance
-                                    % set(lineplot3(plotidx),'XData',c,'YData',n);
+                                    switch transidx
+                                        case 1
+                                            outsidesynvol=abs(rz_pts{pidx}(:,2))>=sminmax&(abs(rz_pts{pidx}(:,2))<=(prox_dist-sminmax));
+                                            dist=sqrt(sum(bsxfun(@minus,abs(rz_pts{pidx}(outsidesynvol,1:2)),[0,sminmax]).^2,2)).*sign(sign(rz_pts{pidx}(outsidesynvol,2)));
+                                        case 2
+                                            outsidesynvol=abs(rz_pts{pidx}(:,1))>=sminmax;
+                                            dist=sqrt(sum(bsxfun(@minus,abs(rz_pts{pidx}(outsidesynvol,1:2)),[sminmax,0]).^2,2)).*sign(sign(rz_pts{pidx}(outsidesynvol,1)));
+                                    end
+                                    [n,e]=histcounts(dist,[fliplr(0:-dr:-(prox_dist-sminmax)),dr:dr:(prox_dist-sminmax)]);
+                                    c=e(1:end-1)+dr/2;
+                                    % correction
+                                    deltaA=0.5*(4/3)*pi*dr*(3*c.^2+3*dr*abs(c)+dr^2);%spherical
+                                    n=n./deltaA;
+                                    set(lineplot3(plotidx),'XData',c,'YData',n);
                                 end
                                 % transform combined rgbimage
                                 rgbimg=cat(3,rz_ch{rgbidx(1)}./max(rz_ch{rgbidx(1)}(:)),rz_ch{rgbidx(2)}./max(rz_ch{rgbidx(2)}(:)),rz_ch{rgbidx(3)}./max(rz_ch{rgbidx(3)}(:)));

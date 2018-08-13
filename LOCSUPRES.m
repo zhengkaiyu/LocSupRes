@@ -2197,8 +2197,6 @@ try
                                 %transform points to new local coordinate
                                 %in line_synpara
                                 temp=cellfun(@(x)[x,ones(size(x,1),1)]*line_synpara_TM,cluster_pts(clusterid,1:3),'UniformOutput',false);
-                                %transform points to new local coordinate
-                                %in line_synortho is just swap x and z
                                 
                                 %transform from cart to cylindrical
                                 %use angle to separate two groups in term
@@ -2212,6 +2210,9 @@ try
                                 % maintain left/right polarity using theta value
                                 trans_cluster_pts{clusterid,1}=cellfun(@(id,a,b,c)[((abs(a(id))<=pi/2)*2-1).*b(id),c(id)],in_rzvol_pts,theta,r,z,'UniformOutput',false);%0-pi/2=+ve
                                 
+                                %transform points to new local coordinate
+                                %in line_synortho is just swap x and z
+                                temp=cellfun(@(x)[x,ones(size(x,1),1)]*line_synortho_TM,cluster_pts(clusterid,1:3),'UniformOutput',false);
                                 % second t,r,z is ortho do the same for orthogonal transform
                                 [theta,r,z]=cellfun(@(y)cart2pol(y(:,3),y(:,2),y(:,1)),temp,'UniformOutput',false);
                                 in_rzvol_pts=cellfun(@(m,n)abs(m)<=prox_dist&abs(n)<=prox_dist,r,z,'UniformOutput',false);
