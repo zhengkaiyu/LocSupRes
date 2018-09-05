@@ -48,3 +48,13 @@ SyncToy_*.dat
 Network Trash Folder
 Temporary Items
 .apdisk
+
+##############
+## SyncToy
+##############
+SyncToy_*.dat
+
+##############
+## Dropbox
+##############
+.dropbox
