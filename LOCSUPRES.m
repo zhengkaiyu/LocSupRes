@@ -817,7 +817,7 @@ if n_cluster>0
     temp=find(strcmp(colname,'Dist'));
     if ~isempty(temp)
         colname(temp+3:end+2)=colname(temp+1:end);
-        colname(temp:temp+2)={'Mean Dist','Median Dist','Max Dist'};
+        colname(temp:temp+2)={'Max Dist','Mean Dist','Median Dist'};
     end
     % add Dist colnames
     temp=find(strcmp(colname,'mean_dist_synapse'));
@@ -876,7 +876,7 @@ function figure_keypress(~,eventkey)
 switch eventkey.Key
     case {'f9'}
         % export trace
-        %export_panel(findobj(handle,'Type','Axes'));
+        % export_panel(findobj(handle,'Type','Axes'));
         export_panel(gca);
     case {'f1','f2','f3','f4'}
         % plot scatter for synapse analysis subplot
