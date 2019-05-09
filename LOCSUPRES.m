@@ -51,6 +51,7 @@ handles.output = hObject;
 % Update handles structure
 guidata(hObject, handles);
 
+% initialise GUI
 initialise(handles);
 
 % --- Outputs from this function are returned to the command line.
@@ -67,9 +68,11 @@ varargout{1} = handles.output;
 % --- Executes on button press in BUTTON_OPEN.
 function BUTTON_OPEN_Callback(~, ~, handles) %#ok<*DEFNU>
 global DATA;
-[pathname,~,~]=fileparts(handles.LOCSUPRES.Name);
+% get current path from the GUI name
+[pathname,~,~] = fileparts(handles.LOCSUPRES.Name);
+% if empty use current path
 if isempty(pathname)
-    pathname='./';
+    pathname = './';
 end
 % ask for one file to open
 [filename,pathname,~] = uigetfile({'*.laf','Localisation analysis file (*.laf)';...
@@ -77,19 +80,27 @@ end
     'Select Saved Localisation Analysis File',...
     'MultiSelect','off',pathname);
 % if files selected
-if pathname~=0
-    temp = load(cat(2,pathname,filename),'-mat'); % load file
-    DATA=temp.DATA;
+if pathname ~= 0
+    % load file
+    temp = load(cat(2,pathname,filename),'-mat');
+    % pass on the DATA
+    DATA = temp.DATA;
     % update datainfo table
     display_datainfo( handles.TABLE_DATAINFO );
     % update probe menu
-    fname=fieldnames(DATA.datainfo);
-    fidx=find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
-    probe_list=cell(DATA.datainfo.n_probe,1);
-    for idx=1:DATA.datainfo.n_probe
-        probe_list{idx}=DATA.datainfo.(fname{fidx(idx)});
+    fname = fieldnames(DATA.datainfo);
+    % Get probe names
+    fidx = find(cellfun(@(x)~isempty(x),regexp(fname,'probe\w_name')));
+    % initialise proble list to cell of size n_probe x 1 vector
+    probe_list = cell(DATA.datainfo.n_probe,1);
+    % loop through all the probes
+    for idx = 1:DATA.datainfo.n_probe
+        % get probe names
+        probe_list{idx} = DATA.datainfo.(fname{fidx(idx)});
     end
-    handles.MENU_PROBE.String=probe_list;
+    % update menu probe string with the probe list
+    handles.MENU_PROBE.String = probe_list;
+    % 
     handles.MENU_PROBE.Value=1;
     handles.MENU_SORTCLUSTERTABLE.Value=1;
     handles.LOCSUPRES.Name=cat(2,pathname,filename);
